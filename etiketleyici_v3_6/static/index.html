@@ -570,7 +570,9 @@ async function save() {
 }
 
 /* Kareden çıkarken kaydedilsin mi? onay: false (yalnızca değiştiyse), 'oneri' (→: model önerisini de onaylar, v3.6'daki
-   gibi), 'tam' (D ve Onayla düğmesi: henüz onaylanmamış kareyi dokunulmamış olsa da kaydeder; kutusuzsa "nesne yok"). */
+   gibi), 'tam' (D ve Onayla düğmesi: henüz onaylanmamış kareyi dokunulmamış olsa da kaydeder; kutusuzsa "nesne yok").
+   Gerekçe: önerilen kutuyu doğrulamak onu çizmekten 6-9 kat hızlıdır (Papadopoulos ve ark., "We don't need no
+   bounding-boxes", CVPR 2016); bu yüzden onay tek tuş / tek tık olmalı. */
 function kaydedilmeli(onay) {
   if (S.idx < 0) return false;
   if (S.dirty) return true;
@@ -955,7 +957,10 @@ cv.addEventListener('mouseleave', () => { if (!S.op) { S.fare = null; ustCiz(); 
 function cizIste() { if (!S.cizBekliyor) { S.cizBekliyor = true; requestAnimationFrame(() => { S.cizBekliyor = false; draw(); }); } }
 function ustIste() { if (!S.ustBekliyor) { S.ustBekliyor = true; requestAnimationFrame(() => { S.ustBekliyor = false; ustCiz(); }); } }
 /* Emek ölçümü ve davranış kaydı: karede geçen etkin süre (BOSTA_SINIR_MS'den uzun boşluklar sayılmaz), yapılan
-   işlemler ve açılıştaki kutular. Sunucu kaydederken açılıştaki kutuları son kutularla karşılaştırır (davranis.py). */
+   işlemler ve açılıştaki kutular. Sunucu kaydederken açılıştaki kutuları son kutularla karşılaştırır (davranis.py).
+   Gerekçe: "doğrulat mı, çizdir mi?" kararı kullanıcının ölçülmüş doğrulama ve çizim sürelerine dayanır (Konyushkova
+   ve ark., "Learning Intelligent Dialogs for Bounding Box Annotation", CVPR 2018; süre ölçümü için Papadopoulos ve
+   ark., "Extreme clicking", ICCV 2017). Bu yüzden süre ve işlem türleri ayrı ayrı tutulur. */
 function yoloKutu(b, w = W(), h = H()) {
   return { cls: b.cls, cx: (b.x1 + b.x2) / 2 / w, cy: (b.y1 + b.y2) / 2 / h, w: (b.x2 - b.x1) / w, h: (b.y2 - b.y1) / h };
 }

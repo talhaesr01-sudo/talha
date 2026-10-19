@@ -44,7 +44,9 @@ SONUCLAR = ("onay", "duzelt", "sinif", "sil")
 MODEL_KAYNAKLARI = ("oneri", "model")   # açılıştaki kutular modelden geliyorsa (öneri ya da M etiketi)
 
 # Sınıf özeti için yumuşatma: küçük örneklemde aşırı uyum olmasın diye her sınıfın oranı, tüm sınıfların ortak
-# oranına doğru çekilir (Bayesçi toplamsal yumuşatma; Beta önseli). ONSEL_GUCU kadar "sanal örnek" eklenir.
+# oranına doğru çekilir (Bayesçi toplamsal yumuşatma; Beta önseli, empirical Bayes). ONSEL_GUCU kadar "sanal örnek"
+# eklenir. Aynı fikir annotator modellemede Dirichlet önseli olarak geçer (Kim ve Ghahramani, "Bayesian Classifier
+# Combination", AISTATS 2012). ONSEL_GUCU ve MIN_ORNEK değerleri literatürden değil, benim seçimimdir.
 ONSEL_GUCU = 5.0
 MIN_ORNEK = 20           # bir sınıfın oranı bu kadar model kutusundan önce "güvenilir" sayılmaz
 
