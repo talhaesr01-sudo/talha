@@ -15,8 +15,6 @@ Etiketler (.txt) varsayılan olarak resimlerle AYNI klasörde durur (kare_1.jpg 
 Tarayıcı: http://127.0.0.1:5000
 """
 import argparse
-import csv
-import io
 import json
 import math
 import os
@@ -298,6 +296,7 @@ def test_seti_kur(ayar):
     DURUM["test"], DURUM["tampon"] = test_seti_hesapla(ayar)
     DURUM["test_surum"] = int(DURUM.get("test_surum", 0)) + 1  # arayüz listeyi yenilesin diye
     roller_guncelle()
+    kuyruk_kur(ayar)   # v3.7: test / tampon olan kareler eski öneri sırasında kalmasın
 
 
 def test_onayli():
@@ -371,7 +370,7 @@ def kuyruk_kur(ayar):
         skor = {}
         sira = adlar[:]
         random.Random(t["tur"]).shuffle(sira)
-    den = [a for a in DURUM.get("denetim", []) if a in kareler]
+    den = [a for a in DURUM.get("denetim", []) if a in kareler and rol(a) == "havuz"]
     dset = set(den)
     sira = [a for a in sira if a not in dset]
     b = int(ayar["tur_buyuklugu"])
@@ -731,25 +730,31 @@ def save_labels(name):
 
 def davranis_kaydet(ad, istemci, kutular):
     """v3.7: kullanıcı davranışı kaydı (davranis.py). Kayıt yazılamasa bile etiket kaydı başarılı sayılır."""
-    if not isinstance(istemci, dict):
+    gunluk = CFG.get("davranis")
+    if not isinstance(istemci, dict) or gunluk is None:
         return   # eski istemci (v3.6 sayfası açık kalmış): yalnızca emek.jsonl yazılır
     try:
-        CFG["davranis"].ekle(D.kayit_olustur(ad, CFG.get("kullanici"), istemci, kutular))
-    except (OSError, TypeError, ValueError) as e:
-        print(f"[Uyarı] Davranış kaydı yazılamadı ({ad}): {e}")
+        gunluk.ekle(D.kayit_olustur(ad, CFG.get("kullanici"), istemci, kutular))
+    except Exception as e:   # noqa: BLE001 — etiket zaten yazıldı; kayıt hatası kaydetmeyi asla 500'e düşürmesin
+        print(f"[Uyarı] Davranış kaydı yazılamadı ({ad}): {e!r}")
+
+
+def csv_yaniti(metin, dosya_adi):
+    return Response(metin, mimetype="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f"attachment; filename={dosya_adi}"})
 
 
 @app.get("/api/davranis.csv")
 def davranis_csv():
-    return Response(D.csv_metni(CFG["davranis"].kayitlar()), mimetype="text/csv; charset=utf-8",
-                    headers={"Content-Disposition": "attachment; filename=davranis.csv"})
+    kayitlar = D.ziyaret_sonlari(CFG["davranis"].kayitlar())   # kare ziyareti başına bir satır
+    return csv_yaniti(O.csv_metni(D.CSV_ALANLARI, D.csv_satirlari(kayitlar)), "davranis.csv")
 
 
 @app.get("/api/davranis_ozet")
 def davranis_ozet():
     """Sınıf başına model kutularının akıbeti (onay / düzeltme / sınıf değişimi / silme) ve eklenen yeni kutular.
     Arayüz şimdilik göstermiyor; sonraki fazlardaki öğrenme ve hata ayıklama için."""
-    kayitlar = CFG["davranis"].kayitlar()
+    kayitlar = D.ziyaret_sonlari(CFG["davranis"].kayitlar())
     return jsonify(kayit=len(kayitlar), kullanici=CFG.get("kullanici"), siniflar=read_classes(),
                    sinif=D.sinif_ozeti(kayitlar), min_ornek=D.MIN_ORNEK)
 
@@ -795,15 +800,9 @@ def _emek_ozeti_hesapla():
 @app.get("/api/emek.csv")
 def emek_csv():
     alanlar = ["ad", "zaman", "kaynak", "sure_sn", "ilk_kutu", "kutu", "eklenen", "silinen", "duzeltilen", "sinif_degisen"]
-    buf = io.StringIO()
-    w = csv.writer(buf, delimiter=";")
-    w.writerow(alanlar)
-    for k in emek_kayitlari():
-        w.writerow([time.strftime("%d.%m.%Y %H:%M:%S", time.localtime(k["zaman"])) if a == "zaman" and k.get("zaman")
-                    else (str(k.get(a)).replace(".", ",") if isinstance(k.get(a), float) else ("" if k.get(a) is None else k.get(a)))
-                    for a in alanlar])
-    return Response("\ufeff" + buf.getvalue(), mimetype="text/csv; charset=utf-8",
-                    headers={"Content-Disposition": "attachment; filename=emek.csv"})
+    satirlar = ([O.tarih_metni(k["zaman"]) if a == "zaman" and k.get("zaman") else k.get(a) for a in alanlar]
+                for k in emek_kayitlari())
+    return csv_yaniti(O.csv_metni(alanlar, satirlar), "emek.csv")
 
 
 _TARAMA = {"zaman": 0.0, "sonuc": None}
@@ -1223,18 +1222,9 @@ def egri_csv():
                ("olculen_test", "test_kare"), ("epoch_yapilan", "epoch"), ("map50", "mAP50"),
                ("map5095", "mAP50_95"), ("p", "precision"), ("r", "recall"), ("val_map50", "val_mAP50"),
                ("sure_sn", "sure_sn")]
-    buf = io.StringIO()
-    w = csv.writer(buf, delimiter=";")
-    w.writerow([b for _, b in alanlar])
     with KILIT:
-        for t in DURUM.get("turlar", []):
-            satir = []
-            for a, _ in alanlar:
-                v = t.get(a)
-                satir.append(f"{v:.4f}".replace(".", ",") if isinstance(v, float) else ("" if v is None else v))
-            w.writerow(satir)
-    return Response("\ufeff" + buf.getvalue(), mimetype="text/csv; charset=utf-8",
-                    headers={"Content-Disposition": "attachment; filename=ogrenme_egrisi.csv"})
+        satirlar = [[t.get(a) for a, _ in alanlar] for t in DURUM.get("turlar", [])]
+    return csv_yaniti(O.csv_metni([b for _, b in alanlar], satirlar, ondalik=4), "ogrenme_egrisi.csv")
 
 
 # ================================================================ başlatma

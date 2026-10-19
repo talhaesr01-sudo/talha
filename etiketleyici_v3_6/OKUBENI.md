@@ -10,7 +10,9 @@ etiketsiz karelere ön etiket koyar ve en kararsız olduğu kareleri sana önce 
   (1 piksel, Shift ile 10; Alt + ok ile boyut). B tuşu artık bir şey yapmaz.
 - **Sol menü sadeleşti: üç kategori.** Her kare bunlardan birindedir, sayıları yanında yazar. Kategoriye tek tıklayınca
   o listenin ilk karesi açılır.
-  - **MODEL ÖNERDİ**: modelin kutu önerdiği etiketsiz kareler ve M kareleri. Modelin en kararsız olduğu kare en üstte.
+  - **MODEL ÖNERDİ**: son modelin baktığı etiketsiz kareler ve M kareleri. Modelin en kararsız olduğu kare en üstte.
+    Modelin hiç kutu bulamadığı kareler de buradadır (eksik nesne olabilir); denetim kareleri (D) de bu sıraya
+    serpiştirilir, onlarda model önerisi bilerek gizlenir.
   - **ETİKETSİZ**: henüz ne etiketi ne model önerisi olan kareler. Önce test kareleri (T), sonra tohum kareler, sonra
     zaman sırası. Model yokken çalışma bu listede yürür.
   - **ONAYLANDI**: senin etiketlediğin ya da D ile onayladığın kareler.
@@ -18,7 +20,12 @@ etiketsiz karelere ön etiket koyar ve en kararsız olduğu kareleri sana önce 
   Test seti, tampon, denetim ve öncelik eskisi gibi çalışır; yalnızca ayrı liste olarak gösterilmez. Rozetler (T, D, M, –)
   ve görüntünün üstündeki şerit karenin türünü söyler. Tampon kareler hiç kullanılmadığı için listelerde görünmez.
 - **Daha az tıklama.** Başlıktaki **✓ Onayla · sonraki** düğmesi D ile aynıdır. Bir iş listesi bitince (ör. MODEL ÖNERDİ)
-  program öteki iş listesine (ETİKETSİZ) kendiliğinden geçer.
+  program öteki iş listesine (ETİKETSİZ) kendiliğinden geçer. Listenin sonuna gelindiğinde atladığın kareler kaldıysa
+  önce onlara (listenin başına) dönülür.
+- **Dikkat, D'nin anlamı netleşti:** D (ve ✓ düğmesi) karenin "bitti" olduğunu söyler: kutusuz kareyi de "nesne yok"
+  diye kaydeder. v3.6'da dokunulmamış boş karede D kareyi atlıyordu; atlamak için artık **→** kullan (kutu seçili
+  değilken). → eskisi gibi model önerisini onaylar ama dokunulmamış boş kareyi kaydetmez. Kare açıldıktan sonraki
+  ilk 0,35 saniyede gelen onay yok sayılır (çift tıkla ya da hızlı D-D ile sıradaki kareyi görmeden onaylamamak için).
 - **Davranış kaydı.** Her kaydetmede `<çalışma klasörü>/davranis.jsonl` dosyasına bir satır yazılır: karede geçen
   süre, eklenen / model adayından eklenen / silinen / taşınan / boyutu değişen / sınıfı değişen kutu sayısı ve geri
   alma sayısı (ayrı ayrı). Ayrıca karenin açılıştaki kutuları kayıttakilerle karşılaştırılır: modelin her kutusu için
@@ -124,7 +131,7 @@ Kare türleri: T = test, – = tampon, D = denetim (rastgele seçilir, model ön
 ## Kısayollar
 
 W: tek kutu çiz (LabelImg gibi; kutu bitince düzenleme moduna döner) · S: düzenle modu · Q / E: önceki / sonraki sınıf
-X: kılavuz çizgileri (imleçten resmin iki ucuna uzanan çizgiler) · C: model adayları · D: kaydet + sonraki
+X: kılavuz çizgileri (imleçten resmin iki ucuna uzanan çizgiler) · C: model adayları · D: onayla + sonraki (kutusuz kareyi "nesne yok" diye kaydeder) · →: sonraki (dokunulmamış boş kareyi atlar)
 Ok tuşları: seçili kutuyu 1 piksel kaydır (Shift: 10) · Alt + ok: sağ / alt kenarı büyüt-küçült
 Tab / Shift + Tab: kutular arasında gez (imleç üst üste kutuların üstündeyse yalnızca onlar arasında)
 

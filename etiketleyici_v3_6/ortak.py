@@ -8,10 +8,13 @@ Terimler:
   IoU           : iki kutunun kesişim alanı / birleşim alanı (0 = hiç örtüşmüyor, 1 = aynı kutu).
   IoS           : kesişim alanı / küçük kutunun alanı (küçük kutu büyüğün içindeyse 1 olur).
 """
+import csv
+import io
 import json
 import math
 import os
 import re
+import threading
 import time
 import zlib
 from pathlib import Path
@@ -42,7 +45,9 @@ def metin_yaz(yol, metin):
     """Önce geçici dosyaya yazar, sonra yerine koyar. Yazarken çökme olursa eski dosya bozulmaz.
     Windows'ta hedef dosya o an başka süreçte açıksa kısa süre bekleyip tekrar dener."""
     yol = Path(yol)
-    gecici = yol.with_name(yol.name + f".{os.getpid()}.tmp")
+    # v3.7: geçici ad iş parçacığına da özgü; aynı dosyayı iki iş parçacığı (kaydetme + M yenileme) aynı anda yazarsa
+    # ikisi aynı .tmp'yi paylaşıp birinin os.replace'i FileNotFoundError ile düşmesin
+    gecici = yol.with_name(yol.name + f".{os.getpid()}.{threading.get_ident()}.tmp")
     gecici.write_text(metin, encoding="utf-8")
     for deneme in range(40):
         try:
@@ -55,6 +60,22 @@ def metin_yaz(yol, metin):
 
 def json_yaz(yol, veri):
     metin_yaz(yol, json.dumps(veri, ensure_ascii=False, indent=1))
+
+
+def csv_metni(baslik, satirlar, ondalik=None):
+    """Türkçe Excel'in doğrudan açtığı CSV: noktalı virgül ayraç, ondalık virgül, UTF-8 BOM. None boş hücre olur.
+    ondalik verilirse ondalıklı sayılar o kadar basamakla yazılır."""
+    buf = io.StringIO()
+    w = csv.writer(buf, delimiter=";")
+    w.writerow(baslik)
+    for satir in satirlar:
+        w.writerow(["" if v is None else ((f"{v:.{ondalik}f}" if ondalik is not None else str(v)).replace(".", ",")
+                                          if isinstance(v, float) else v) for v in satir])
+    return "\ufeff" + buf.getvalue()
+
+
+def tarih_metni(zaman):
+    return time.strftime("%d.%m.%Y %H:%M:%S", time.localtime(zaman))
 
 
 def guvenli_ad(ad, ek=""):

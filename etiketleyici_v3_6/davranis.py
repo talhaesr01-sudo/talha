@@ -1,7 +1,9 @@
 """
 Kullanıcı davranışı kaydı (v3.7, Faz 1 altyapısı). Yalnızca numpy ve standart kütüphane kullanır.
 
-Her kaydetmede davranis.jsonl dosyasına bir satır yazılır. Satırda iki tür bilgi vardır:
+Her kaydetmede davranis.jsonl dosyasına bir satır yazılır. Satır, karenin bu "ziyaretinin" (kare açılışından başka kareye
+geçişe kadar) başından o ana kadarki TOPLAMI taşır; aynı ziyarette ara kayıt (Ctrl+S) olursa yalnızca sonuncusu sayılır
+(ziyaret_sonlari). Satırda iki tür bilgi vardır:
   islem : istemcinin saydığı işlemler (eklenen, model adayından eklenen, silinen, taşınan, boyutu değişen,
           sınıfı değişen kutu, geri alma) ve karede geçen etkin süre. "Kullanıcı ne kadar uğraştı?"
   fark  : karenin AÇILIŞTAKİ kutuları ile KAYITTAKİ kutularının karşılaştırması. "Sonuçta ne değişti?"
@@ -18,8 +20,6 @@ Eşleştirme: kutular sınıftan bağımsız ve IoU'ya göre açgözlü (en yük
 PASCAL VOC (Everingham ve ark., IJCV 2010) ve mAP50 ile aynıdır. Sınıftan bağımsız eşleştirme sayesinde
 "kutu yerinde kaldı ama sınıfı değişti" ayrı bir olay olarak görülür.
 """
-import csv
-import io
 import json
 import os
 import threading
@@ -137,7 +137,8 @@ def kayit_olustur(ad, kullanici, istemci, son_kutular, zaman=None):
     tur = istemci.get("tahmin_tur")
     return {
         "surum": KAYIT_SURUMU, "ad": str(ad), "zaman": round(zaman if zaman is not None else time.time(), 1),
-        "kullanici": _metin(kullanici), "oturum": _metin(istemci.get("oturum")), "liste": _metin(istemci.get("liste")),
+        "kullanici": _metin(kullanici), "oturum": _metin(istemci.get("oturum")), "ziyaret": _metin(istemci.get("ziyaret")),
+        "liste": _metin(istemci.get("liste")),
         "kaynak": _metin(istemci.get("kaynak")), "rol": _metin(istemci.get("rol")),
         "tahmin_tur": _tamsayi(tur) if tur is not None else None,
         "sure_sn": round(min(max(_sayi(istemci.get("sure_sn")), 0.0), EN_COK_SURE_SN), 1),
@@ -175,8 +176,8 @@ class Gunluk:
         if self._onbellek[0] != anahtar:
             kayit = []
             with self._kilit:
-                try:
-                    satirlar = self.yol.read_text(encoding="utf-8").splitlines()
+                try:   # errors="replace": yarıda kesilmiş çok baytlı karakter okumayı çökertmesin, o satır atlanır
+                    satirlar = self.yol.read_text(encoding="utf-8", errors="replace").splitlines()
                 except OSError:
                     satirlar = []
             for s in satirlar:
@@ -191,22 +192,32 @@ class Gunluk:
 
 
 # ------------------------------------------------------------------ özet ve dışa aktarma
+def ziyaret_sonlari(kayitlar):
+    """Her ziyaretin yalnızca son kaydı (kayıtlar ziyaret başından toplam taşır). Ziyaret alanı olmayan kayıt tektir."""
+    son = {}
+    for i, k in enumerate(kayitlar):
+        son[k.get("ziyaret") or ("#", i)] = i
+    return [kayitlar[i] for i in sorted(son.values())]
+
+
 def sinif_ozeti(kayitlar, onsel_gucu=ONSEL_GUCU, min_ornek=MIN_ORNEK):
     """Sınıf başına: model kutularından kaçı onaylandı / düzeltildi / sınıfı değişti / silindi ve kullanıcının
-    kaç yeni (modelin kaçırdığı) kutu eklediği. Oranlar küçük örneklemde tüm sınıfların ortak oranına doğru
-    yumuşatılır; "guvenilir" alanı en az min_ornek model kutusu görülüp görülmediğini söyler."""
+    kaç yeni (modelin kaçırdığı) kutu eklediği. Yalnızca açılışta model kutusu olan kareler (öneri ya da M) sayılır;
+    elle etiketlenen karede çizilen kutu "model kaçırdı" değildir. Oranlar küçük örneklemde tüm sınıfların ortak
+    oranına doğru yumuşatılır; "guvenilir" alanı en az min_ornek model kutusu görülüp görülmediğini söyler."""
     sinif = {}
-    for k in kayitlar:
+    bos = lambda: {"model_kutu": 0, **dict.fromkeys(SONUCLAR, 0), "yeni": 0}   # noqa: E731
+    for k in ziyaret_sonlari(kayitlar):
+        if k.get("kaynak") not in MODEL_KAYNAKLARI:
+            continue
         fark = k.get("fark") or {}
-        model_kutusu = k.get("kaynak") in MODEL_KAYNAKLARI
-        for kutu in fark.get("kutular", []) if model_kutusu else []:
-            s = sinif.setdefault(kutu.get("c"), {"model_kutu": 0, **dict.fromkeys(SONUCLAR, 0), "yeni": 0})
+        for kutu in fark.get("kutular", []):
+            s = sinif.setdefault(kutu.get("c"), bos())
             s["model_kutu"] += 1
             if kutu.get("sonuc") in SONUCLAR:
                 s[kutu["sonuc"]] += 1
         for kutu in fark.get("yeniler", []):
-            s = sinif.setdefault(kutu.get("c"), {"model_kutu": 0, **dict.fromkeys(SONUCLAR, 0), "yeni": 0})
-            s["yeni"] += 1
+            sinif.setdefault(kutu.get("c"), bos())["yeni"] += 1
     toplam = sum(s["model_kutu"] for s in sinif.values())
     onsel = {r: (sum(s[r] for s in sinif.values()) / toplam if toplam else 0.0) for r in SONUCLAR}
     for s in sinif.values():
@@ -216,20 +227,15 @@ def sinif_ozeti(kayitlar, onsel_gucu=ONSEL_GUCU, min_ornek=MIN_ORNEK):
     return {str(c): v for c, v in sorted(sinif.items(), key=lambda x: (x[0] is None, x[0] or 0))}
 
 
-CSV_ALANLARI = ("ad", "zaman", "kullanici", "oturum", "liste", "kaynak", "rol", "tahmin_tur", "sure_sn") \
+CSV_ALANLARI = ("ad", "zaman", "kullanici", "oturum", "ziyaret", "liste", "kaynak", "rol", "tahmin_tur", "sure_sn") \
     + tuple(f"islem_{k}" for k in ISLEMLER) + tuple(f"fark_{k}" for k in SONUCLAR + ("yeni",))
 
 
-def csv_metni(kayitlar):
-    """Excel'de açılabilen CSV (noktalı virgül, Türkçe ondalık virgül, UTF-8 BOM)."""
-    buf = io.StringIO()
-    w = csv.writer(buf, delimiter=";")
-    w.writerow(CSV_ALANLARI)
+def csv_satirlari(kayitlar):
+    """CSV_ALANLARI sırasıyla düz satırlar (ortak.csv_metni için)."""
     for k in kayitlar:
         duz = {**k, **{f"islem_{a}": (k.get("islem") or {}).get(a) for a in ISLEMLER},
                **{f"fark_{a}": (k.get("fark") or {}).get(a) for a in SONUCLAR + ("yeni",)}}
         if isinstance(duz.get("zaman"), (int, float)):
-            duz["zaman"] = time.strftime("%d.%m.%Y %H:%M:%S", time.localtime(duz["zaman"]))
-        w.writerow(["" if duz.get(a) is None else (str(duz[a]).replace(".", ",") if isinstance(duz[a], float) else duz[a])
-                    for a in CSV_ALANLARI])
-    return "﻿" + buf.getvalue()
+            duz["zaman"] = O.tarih_metni(duz["zaman"])
+        yield [duz.get(a) for a in CSV_ALANLARI]

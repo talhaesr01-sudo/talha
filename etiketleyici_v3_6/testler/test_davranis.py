@@ -6,6 +6,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import davranis as D  # noqa: E402
+import ortak as O  # noqa: E402
 
 
 def kutu(c, cx, cy, w, h, m=None):
@@ -89,7 +90,41 @@ def test_sinif_ozeti_yumusatir_ve_guvenilirligi_bildirir():
 
 def test_csv_basligi_ve_satiri():
     k = D.kayit_olustur("a.jpg", "u", {"sure_sn": 2.5, "ilk": []}, [kutu(0, .5, .5, .2, .2)], zaman=0)
-    metin = D.csv_metni([k])
+    metin = O.csv_metni(D.CSV_ALANLARI, D.csv_satirlari([k]))
     satirlar = metin.lstrip("﻿").splitlines()
     assert satirlar[0].split(";") == list(D.CSV_ALANLARI)
     assert "2,5" in satirlar[1]
+
+
+def test_ortak_csv_ondalik_ve_bos_hucre():
+    metin = O.csv_metni(["a", "b", "c"], [[1.23456, None, "x"]], ondalik=2)
+    assert metin.startswith("\ufeff") and metin.lstrip("\ufeff").splitlines()[1] == "1,23;;x"
+
+
+def test_ziyaret_sonlari_yalnizca_son_kaydi_tutar():
+    k = [{"ziyaret": "a", "n": 1}, {"ziyaret": "b", "n": 2}, {"ziyaret": "a", "n": 3}, {"n": 4}, {"n": 5}]
+    assert [x["n"] for x in D.ziyaret_sonlari(k)] == [2, 3, 4, 5]
+
+
+def test_ara_kayit_model_istatistigini_bozmaz():
+    # Ctrl+S ile ara kayıt (kutular dokunulmamış), sonra model kutusu silinip yeniden kaydedildi: aynı ziyaret
+    ilk = [kutu(0, .5, .5, .2, .2, .7)]
+    ara = D.kayit_olustur("a", "u", {"ziyaret": "z1", "kaynak": "oneri", "ilk": ilk}, [kutu(0, .5, .5, .2, .2)])
+    son = D.kayit_olustur("a", "u", {"ziyaret": "z1", "kaynak": "oneri", "ilk": ilk}, [])
+    oz = D.sinif_ozeti([ara, son])
+    assert oz["0"]["model_kutu"] == 1 and oz["0"]["sil"] == 1 and oz["0"]["onay"] == 0
+
+
+def test_elle_karede_cizilen_kutu_model_kacirdi_sayilmaz():
+    elle = D.kayit_olustur("a", "u", {"kaynak": "elle", "ilk": []}, [kutu(1, .5, .5, .2, .2)])
+    oneri = D.kayit_olustur("b", "u", {"kaynak": "oneri", "ilk": []}, [kutu(1, .5, .5, .2, .2)])
+    assert D.sinif_ozeti([elle, oneri])["1"]["yeni"] == 1
+
+
+def test_yarim_cok_bayt_karakter_okumayi_cokertmez(tmp_path):
+    g = D.Gunluk(tmp_path / "d.jsonl")
+    g.ekle({"a": "ş"})
+    with open(g.yol, "ab") as f:
+        f.write('{"a": "ş'.encode("utf-8")[:-1])   # "ş"nin ilk baytında kesildi
+    g.ekle({"a": 2})
+    assert [k["a"] for k in g.kayitlar()] == ["ş", 2]

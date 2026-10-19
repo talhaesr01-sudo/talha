@@ -285,7 +285,8 @@
         <dt>Esc</dt><dd>Seçimi kaldır / sürüklemeyi iptal et</dd>
         <dt>Delete</dt><dd>Seçili kutuyu sil</dd>
         <dt>1 – 9</dt><dd>Sınıf seç (seçili kutunun sınıfını da değiştirir)</dd>
-        <dt>D</dt><dd>Kaydet + sonraki (model önerisini onaylar). → da olur, kutu seçili değilken</dd>
+        <dt>D</dt><dd>Onayla + sonraki: kutuları kaydeder, model önerisini onaylar; kutusuz kareyi “nesne yok” diye onaylar. Başlıktaki ✓ düğmesi de aynıdır</dd>
+        <dt>→</dt><dd>Sonraki (kutu seçili değilken): değiştirdiysen ya da model önerisiyse kaydeder; dokunulmamış boş kareyi atlar</dd>
         <dt>A</dt><dd>Önceki görüntü. ← da olur, kutu seçili değilken</dd>
         <dt>Ok tuşları</dt><dd>Seçili kutuyu 1 piksel kaydır (Shift ile 10 piksel)</dd>
         <dt>Alt + ok</dt><dd>Seçili kutunun sağ / alt kenarını büyüt ya da küçült (Shift ile 10 piksel)</dd>
@@ -399,6 +400,7 @@ const HR = 7;          // tutamak yakalama yarıçapı (ekran pikseli)
 const DRAG_MIN = 3;    // bu kadar ekran pikselinden az hareket = tıklama sayılır
 const BOSTA_SINIR_MS = 30000;   // emek ölçümü: bundan uzun boşluk "başka işle uğraştı" sayılır, süreye eklenmez
 const OK_GRUP_MS = 800;         // ok tuşuna bu kadar ms içinde art arda basışlar tek geri alma adımı ve tek işlem sayılır
+const EN_AZ_GORME_MS = 350;     // kare açıldıktan sonra bu süre dolmadan gelen "onayla" yok sayılır (çift tık, görmeden onay)
 const OTURUM = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);   // davranış kaydında sayfa oturumu
 /* v3.7: sol menü yalnızca üç kategori gösterir. v3.6'nın liste adları (localStorage'da kalmış olabilir) eşlenir. */
 const LISTELER = { oneri: 'MODEL ÖNERDİ', etiketsiz: 'ETİKETSİZ', onay: 'ONAYLANDI' };
@@ -410,7 +412,7 @@ const S = {
   op: null, pan: null, space: false, undo: [], loadToken: 0,
   liste: 'oneri', order: [], kuyruk: null, adaylar: [], showCand: false, arti: true, fare: null, tekCizim: false, emek: null,
   rol: 'havuz', denetim: false, tahminTurGoruntu: null, durum: null, tahminTur: undefined,
-  gorselAnahtar: null, okGrup: null,
+  gorselAnahtar: null, okGrup: null, ziyaretNo: 0, gidiyor: false, acilis: 0,
 };
 const byName = new Map();
 /* S.op = süren fare işlemi: draw | move | resize.  Kutuda m alanı varsa kutu modelden gelmiştir (m = güven). */
@@ -548,25 +550,37 @@ async function save() {
   const name = S.images[S.idx].name;
   emekTik();
   const em = S.emek, sure_sn = em ? Math.round(em.sure / 100) / 10 : 0;
-  // emek: v3.6 özeti (emek.jsonl) için; davranis: v3.7 ayrıntılı kayıt (davranis.jsonl, bkz. davranis.py)
-  const emek = em ? { sure_sn, eklenen: em.eklenen, silinen: em.silinen, duzeltilen: em.tasinan + em.boyut,
-                      sinif_degisen: em.sinif, kaynak: em.kaynak, ilk_kutu: em.ilk } : undefined;
-  const davranis = em ? { oturum: OTURUM, liste: S.liste, kaynak: em.kaynak, rol: S.rol, tahmin_tur: S.tahminTurGoruntu ?? null, sure_sn,
-                          islem: { eklenen: em.eklenen, aday_eklenen: em.aday, silinen: em.silinen, tasinan: em.tasinan,
-                                   boyut: em.boyut, sinif_degisen: em.sinif, geri_al: em.geri },
-                          ilk: em.ilkKutular } : undefined;
+  // davranis (v3.7, davranis.jsonl): ziyaretin başından bu yana TOPLAM; aynı ziyaretteki ara kayıtlarda (Ctrl+S) sunucu
+  // yalnızca sonuncuyu sayar, böylece açılıştaki model kutularının akıbeti ara kayıtla kaybolmaz.
+  // emek (v3.6 özeti, emek.jsonl): eskisi gibi son kayıttan bu yana olan FARK.
+  const islem = em && { eklenen: em.eklenen, aday_eklenen: em.aday, silinen: em.silinen, tasinan: em.tasinan,
+                        boyut: em.boyut, sinif_degisen: em.sinif, geri_al: em.geri };
+  const g = em?.gonderilen, fark = k => islem[k] - (g ? g.islem[k] : 0);
+  const emek = em ? { sure_sn: Math.round((sure_sn - (g ? g.sure_sn : 0)) * 10) / 10, eklenen: fark('eklenen'),
+                      silinen: fark('silinen'), duzeltilen: fark('tasinan') + fark('boyut'), sinif_degisen: fark('sinif_degisen'),
+                      kaynak: g ? 'duzenleme' : em.kaynak, ilk_kutu: g ? g.kutu : em.ilk } : undefined;
+  const davranis = em ? { oturum: OTURUM, ziyaret: em.ziyaret, liste: em.liste, kaynak: em.kaynak, rol: S.rol,
+                          tahmin_tur: S.tahminTurGoruntu ?? null, sure_sn, islem, ilk: em.ilkKutular } : undefined;
   await api('/api/labels/' + encodeURIComponent(name), { boxes, emek, davranis });
   Object.assign(S.images[S.idx], { labeled: true, count: boxes.length, model: false });
   S.boxes.forEach(b => { delete b.m; });
-  if (em) emekBaslat('duzenleme');   // aynı karede sonraki düzeltmeler kaydedilen hâle göre ölçülür
+  if (em) em.gonderilen = { sure_sn, islem, kutu: boxes.length };
   S.pre = false;
   setDirty(false); renderList(false); renderBoxes(); bannerGuncelle(); draw();
 }
 
+/* Kareden çıkarken kaydedilsin mi? onay: false (yalnızca değiştiyse), 'oneri' (→: model önerisini de onaylar, v3.6'daki
+   gibi), 'tam' (D ve Onayla düğmesi: henüz onaylanmamış kareyi dokunulmamış olsa da kaydeder; kutusuzsa "nesne yok"). */
+function kaydedilmeli(onay) {
+  if (S.idx < 0) return false;
+  if (S.dirty) return true;
+  const im = S.images[S.idx];
+  return !!onay && (S.pre || (onay === 'tam' && !(im.labeled && !im.model) && S.rol !== 'tampon'));
+}
 async function load(i, onay = false) {
   if (i === null || i === undefined || i < 0 || i >= S.images.length) return;
   if (S.op) cancelOp();
-  if (S.idx >= 0 && (S.dirty || (onay && S.pre))) {
+  if (kaydedilmeli(onay)) {
     try { await save(); } catch (e) { toast('Kaydedilemedi: ' + e.message); return; }
   }
   const token = ++S.loadToken;
@@ -579,7 +593,7 @@ async function load(i, onay = false) {
   } catch (e) { if (token === S.loadToken) toast('Görüntü açılamadı: ' + e.message); return; }
   if (token !== S.loadToken) return; // bu arada başka görüntüye geçildi
 
-  S.idx = i; S.img = img; S.sel = -1; S.undo = []; S.op = null;
+  S.idx = i; S.img = img; S.sel = -1; S.undo = []; S.op = null; S.okGrup = null; S.acilis = performance.now();
   const w = img.naturalWidth, h = img.naturalHeight;
   S.rol = lab.rol; S.denetim = lab.denetim; S.tahminTurGoruntu = lab.tahmin_tur;
   if (lab.labeled) {
@@ -615,8 +629,10 @@ async function kuyrukYukle(yenidenCiz = true) {
 const oneriKumesi = () => new Set(S.kuyruk && !S.kuyruk.tohum ? S.kuyruk.adlar : []);
 function kategori(im, oneri) {
   if (im.labeled && !im.model) return 'onay';
-  if (im.model || oneri.has(im.name)) return 'oneri';
-  return im.rol === 'tampon' ? null : 'etiketsiz';
+  // Rol önce: test seti değişince eski öneri sırasında test / tampon karesi kalmış olabilir
+  if (im.rol === 'tampon') return null;
+  if (im.rol === 'test') return 'etiketsiz';
+  return im.model || oneri.has(im.name) ? 'oneri' : 'etiketsiz';
 }
 function kategoriSayilari() {
   const oneri = oneriKumesi(), say = { oneri: 0, etiketsiz: 0, onay: 0 };
@@ -626,7 +642,12 @@ function kategoriSayilari() {
 /* Önce "once" listesindekiler (verilen sırayla), sonra geri kalanlar (zaman sırasıyla) */
 function onceSonra(once, tum) { const ilk = new Set(once); return [...ilk, ...tum.filter(i => !ilk.has(i))]; }
 function listeKur() {
-  const oneri = oneriKumesi(), uye = i => kategori(S.images[i], oneri) === S.liste;
+  const oneri = oneriKumesi();
+  // Aynı liste yeniden kurulurken (yeni model, klasör değişimi) bu arada onaylanan kareler listede kalsın: A / ← ile
+  // dönülebilsin. Kategori değiştirilince liste temiz başlar.
+  const tut = S.kurulanListe === S.liste ? new Set(S.order) : new Set();
+  S.kurulanListe = S.liste;
+  const uye = i => { const k = kategori(S.images[i], oneri); return k === S.liste || (k === 'onay' && tut.has(i)); };
   const adlardan = adlar => (adlar || []).map(n => byName.get(n)).filter(i => i !== undefined && uye(i));
   const zaman = S.images.map((_, i) => i).filter(uye);
   if (S.liste === 'oneri') {
@@ -644,7 +665,7 @@ function listeKur() {
 }
 function baslangicListesi(kayitli) {
   const k = LISTELER[kayitli] ? kayitli : ESKI_LISTE[kayitli], say = kategoriSayilari();
-  if (k === 'onay' || (k && say[k])) return k;
+  if (k && say[k]) return k;
   return say.oneri ? 'oneri' : 'etiketsiz';
 }
 async function listeSec(ad) {
@@ -659,20 +680,32 @@ function siradaki(yon) {
   if (!ord.length) return null;
   const pos = ord.indexOf(S.idx);
   if (yon > 0) {
-    // İş listelerinde (model önerdi, etiketsiz) bu arada onaylanan kareler atlanır
-    const oneri = oneriKumesi();
-    for (let p = pos + 1; p < ord.length; p++) {
-      if (S.liste === 'onay' || kategori(S.images[ord[p]], oneri) === S.liste) return ord[p];
-    }
+    // İş listelerinde (model önerdi, etiketsiz) bu arada onaylanan kareler atlanır. Sona gelinince baştan aranır:
+    // → ile atlanan kareler listenin üstünde kalmış olabilir.
+    const oneri = oneriKumesi(), bekliyor = i => S.liste === 'onay' || kategori(S.images[i], oneri) === S.liste;
+    for (let p = pos + 1; p < ord.length; p++) if (bekliyor(ord[p])) return ord[p];
+    if (S.liste !== 'onay') for (let p = 0; p < pos; p++) if (bekliyor(ord[p])) return ord[p];
     return null;
   }
   if (pos === -1) return null;
   return pos > 0 ? ord[pos - 1] : null;
 }
-async function git(yon) {
+/* Listede ileri / geri. onay: kaydedilmeli() ile aynı anlam. Bir geçiş sürerken gelen ikinci istek (çift tık, hızlı D-D)
+   yok sayılır; yoksa aynı kare iki kez kaydedilir ya da sıradaki kare görülmeden onaylanır. */
+async function git(yon, onay = false) {
+  if (S.gidiyor || S.op) return;
+  if (onay === 'tam' && performance.now() - S.acilis < EN_AZ_GORME_MS) return;
+  S.gidiyor = true;
+  try { await gitIc(yon, onay); } finally { S.gidiyor = false; }
+}
+async function gitIc(yon, onay) {
   const j = siradaki(yon);
-  if (j !== null) { await load(j, yon > 0); return; }
-  if (yon > 0 && S.idx >= 0 && (S.dirty || S.pre)) {
+  if (j !== null) {
+    if (yon > 0 && S.order.indexOf(j) < S.order.indexOf(S.idx)) toast('Listenin sonuna gelindi; atlanan karelere dönülüyor.', 3000);
+    await load(j, onay);
+    return;
+  }
+  if (yon > 0 && kaydedilmeli(onay)) {
     try { await save(); } catch (e) { toast('Kaydedilemedi: ' + e.message); return; }
   }
   if (yon < 0) { toast('Listenin başındasın.'); return; }
@@ -683,7 +716,7 @@ async function git(yon) {
     toast(`${LISTELER[eski]} listesi bitti; ${LISTELER[diger]} listesine geçildi.`, 3500);
     return;
   }
-  toast(eski === 'onay' ? 'Listenin sonundasın, kaydedildi.' : 'Etiketlenecek kare kalmadı. Hepsi onaylandı.');
+  toast(eski === 'onay' ? 'Listenin sonundasın.' : 'Etiketlenecek kare kalmadı. Hepsi onaylandı.');
 }
 
 /* ---------------- görünüm ---------------- */
@@ -837,7 +870,8 @@ function renderList(scroll) {
   const say = kategoriSayilari();
   for (const k in say) $('#say-' + k).textContent = say[k];
   // Kategori sayıları sol menüde; başlıkta yalnızca genel ilerleme
-  $('#progress').textContent = `${S.images.length} fotoğraf · %${Math.round(100 * say.onay / Math.max(1, S.images.length))} onaylandı`;
+  const kullanilan = say.oneri + say.etiketsiz + say.onay;   // tampon kareler hiç kullanılmaz, paydaya girmez
+  $('#progress').textContent = `${S.images.length} fotoğraf · %${Math.round(100 * say.onay / Math.max(1, kullanilan))} onaylandı`;
   const den = new Set(S.kuyruk?.denetim || []), skor = S.kuyruk?.skor || {};
   const frag = document.createDocumentFragment();
   let curEl = null;
@@ -888,9 +922,10 @@ function select(i) { S.sel = i; renderBoxes(); draw(); }
 function setClass(i) {
   if (i < 0 || i >= S.classes.length) return;
   S.cls = i;
-  if (S.sel >= 0 && S.boxes[S.sel] && (S.boxes[S.sel].cls !== i || S.boxes[S.sel].m !== undefined)) {
-    pushUndo(); S.boxes[S.sel].cls = i; delete S.boxes[S.sel].m; setDirty(true); renderBoxes();
-    emekSay('sinif');
+  const b = S.boxes[S.sel];
+  if (S.sel >= 0 && b && (b.cls !== i || b.m !== undefined)) {
+    if (b.cls !== i) emekSay('sinif');   // aynı sınıfa basmak model kutusunu yalnızca "benim kutum" yapar, sınıf değişimi değildir
+    pushUndo(); b.cls = i; delete b.m; setDirty(true); renderBoxes();
   }
   renderClasses(); draw();
 }
@@ -925,7 +960,9 @@ function yoloKutu(b, w = W(), h = H()) {
   return { cls: b.cls, cx: (b.x1 + b.x2) / 2 / w, cy: (b.y1 + b.y2) / 2 / h, w: (b.x2 - b.x1) / w, h: (b.y2 - b.y1) / h };
 }
 function emekBaslat(kaynak) {
-  S.emek = { son: performance.now(), sure: 0, eklenen: 0, aday: 0, silinen: 0, tasinan: 0, boyut: 0, sinif: 0, geri: 0,
+  // Ziyaret: kare açılışından başka kareye geçişe kadar. Açılıştaki kutular ziyaret boyunca karşılaştırma tabanıdır.
+  S.emek = { ziyaret: `${OTURUM}-${++S.ziyaretNo}`, liste: S.liste, gonderilen: null,
+             son: performance.now(), sure: 0, eklenen: 0, aday: 0, silinen: 0, tasinan: 0, boyut: 0, sinif: 0, geri: 0,
              ilk: S.boxes.length, kaynak,
              ilkKutular: S.boxes.map(b => b.m !== undefined ? { ...yoloKutu(b), m: b.m } : yoloKutu(b)) };
 }
@@ -1140,7 +1177,8 @@ window.addEventListener('keydown', async e => {
   if (S.op) return;
   if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); removeBox(S.sel); return; }
   if (/^[1-9]$/.test(e.key)) { setClass(Number(e.key) - 1); return; }
-  if (k === 'd' || e.key === 'ArrowRight') { e.preventDefault(); if (!e.repeat) git(+1); return; }
+  if (k === 'd') { e.preventDefault(); if (!e.repeat) git(+1, 'tam'); return; }
+  if (e.key === 'ArrowRight') { e.preventDefault(); if (!e.repeat) git(+1, 'oneri'); return; }
   if (k === 'a' || e.key === 'ArrowLeft') { e.preventDefault(); if (!e.repeat) git(-1); return; }
   if (k === 'f') { fit(); return; }
   if (k === 's') { S.tekCizim = false; setMode('edit'); return; }
@@ -1159,7 +1197,7 @@ window.addEventListener('resize', resize);
 $('#mEdit').onclick = () => { S.tekCizim = false; setMode('edit'); };
 $('#mDraw').onclick = () => { S.tekCizim = false; setMode('draw'); };
 document.querySelectorAll('.kategoriler button').forEach(b => { b.onclick = () => { b.blur(); listeSec(b.dataset.liste); }; });
-$('#bOnay').onclick = e => { e.currentTarget.blur(); if (!S.op) git(+1); };
+$('#bOnay').onclick = e => { e.currentTarget.blur(); git(+1, 'tam'); };
 
 /* ---------------- model sekmesi ---------------- */
 function sekme(ad) {
