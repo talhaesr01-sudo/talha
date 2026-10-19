@@ -38,7 +38,7 @@
   #fname { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 30vw; }
   #progress { font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--muted); }
   .spacer { flex: 1; }
-  .modes { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .modes { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; flex: none; }
   .modes button { border: 0; background: transparent; padding: 6px 12px; cursor: pointer; white-space: nowrap; }
   .modes button.on { background: var(--accent); color: #1C232A; font-weight: 600; }
   #hint { color: var(--muted); font-size: 13px; white-space: nowrap; }
@@ -413,6 +413,7 @@ const S = {
   liste: 'oneri', order: [], kuyruk: null, adaylar: [], showCand: false, arti: true, fare: null, tekCizim: false, emek: null,
   rol: 'havuz', denetim: false, tahminTurGoruntu: null, durum: null, tahminTur: undefined,
   gorselAnahtar: null, okGrup: null, ziyaretNo: 0, gidiyor: false, acilis: 0,
+  ogeler: new Map(), cizilenSira: null, cizilenAcik: -1,   // sol listenin çizilmiş satırları (renderList)
 };
 const byName = new Map();
 /* S.op = süren fare işlemi: draw | move | resize.  Kutuda m alanı varsa kutu modelden gelmiştir (m = güven). */
@@ -595,7 +596,7 @@ async function load(i, onay = false) {
   } catch (e) { if (token === S.loadToken) toast('Görüntü açılamadı: ' + e.message); return; }
   if (token !== S.loadToken) return; // bu arada başka görüntüye geçildi
 
-  S.idx = i; S.img = img; S.sel = -1; S.undo = []; S.op = null; S.okGrup = null; S.acilis = performance.now();
+  S.idx = i; S.img = img; S.sel = -1; S.undo = []; S.op = null; S.okGrup = null;
   const w = img.naturalWidth, h = img.naturalHeight;
   S.rol = lab.rol; S.denetim = lab.denetim; S.tahminTurGoruntu = lab.tahmin_tur;
   if (lab.labeled) {
@@ -615,6 +616,7 @@ async function load(i, onay = false) {
   setDirty(false);
   $('#fname').textContent = `${name}  (${w}×${h})`;
   fit(); renderList(true); renderBoxes(); bannerGuncelle();
+  S.acilis = performance.now();   // onay koruması kare ekranda göründükten sonra başlasın
   // Sıradaki görüntüyü önceden indir (4K'da geçişi hızlandırır)
   const nx = siradaki(+1);
   if (nx !== null) { const pre = new Image(); pre.src = '/api/image/' + encodeURIComponent(S.images[nx].name); }
@@ -867,43 +869,56 @@ function renderBoxes() {
   });
   el.children[S.sel]?.scrollIntoView({ block: 'nearest' });
 }
+/* Sol liste. Tam çizim yalnızca liste (S.order dizisi) değişince yapılır: kategori değişimi, yeni model, klasör
+   değişimi (listeKur her seferinde yeni dizi kurar). Kare geçişinde ve kaydetmede yalnızca eski ve yeni açık karenin
+   satırı yenilenir. 10.000 karelik listede tam çizim ~400 ms sürüyor ve her D'de iki kez yapılıyordu. */
 function renderList(scroll) {
-  const el = $('#list'); el.innerHTML = '';
   const say = kategoriSayilari();
   for (const k in say) $('#say-' + k).textContent = say[k];
   // Kategori sayıları sol menüde; başlıkta yalnızca genel ilerleme
   const kullanilan = say.oneri + say.etiketsiz + say.onay;   // tampon kareler hiç kullanılmaz, paydaya girmez
   $('#progress').textContent = `${S.images.length} fotoğraf · %${Math.round(100 * say.onay / Math.max(1, kullanilan))} onaylandı`;
   const den = new Set(S.kuyruk?.denetim || []), skor = S.kuyruk?.skor || {};
-  const frag = document.createDocumentFragment();
-  let curEl = null;
-  for (const i of S.order) {
-    const im = S.images[i];
-    const d = document.createElement('div');
-    d.className = 'item' + (i === S.idx ? ' cur' : ''); d.tabIndex = 0;
-    let rozet = '';
-    if (im.rol === 'test') rozet = '<span class="rozet t" title="Test seti">T</span>';
-    else if (im.rol === 'tampon') rozet = '<span class="rozet p" title="Tampon: kullanılmaz">–</span>';
-    else if (den.has(im.name)) rozet = '<span class="rozet d" title="Denetim karesi">D</span>';
-    if (im.labeled && im.model) rozet += '<span class="rozet m" title="Model etiketledi, henüz kontrol edilmedi">M</span>';
-    let sag = im.labeled ? im.count : '', puan = null;
-    if ((!im.labeled || im.model) && S.liste === 'oneri' && skor[im.name] !== undefined) { puan = skor[im.name]; sag = fmt(puan); }
-    d.innerHTML = `<span class="dot${im.labeled && !im.model ? ' done' : ''}"></span><span></span>${rozet}`
-      + (puan !== null ? `<span class="n puan" style="--p:${clamp(puan, 0, 1)}">${sag}</span>` : `<span class="n">${sag}</span>`);
-    d.children[1].textContent = im.kisa || im.name;
-    d.children[1].style.cssText = 'overflow:hidden;text-overflow:ellipsis';
-    const det = S.kuyruk?.detay?.[im.name], ag = S.kuyruk?.agirlik;
-    d.title = puan !== null && det && ag
-      ? `${im.name}\nÖncelik ${fmt(puan)} = ${fmt(ag.u, 1)} × kararsızlık ${fmt(det[0])} + ${fmt(ag.t, 1)} × titreme ${fmt(det[1])}\nModelin önerdiği kutu: ${det[2]}`
-      : im.name;
-    d.onclick = () => load(i);
-    frag.appendChild(d);
-    if (i === S.idx) curEl = d;
+  if (S.cizilenSira !== S.order) listeyiBastanCiz(den, skor);
+  else {
+    for (const i of new Set([S.cizilenAcik, S.idx])) {
+      const eski = S.ogeler.get(i);
+      if (eski) { const yeni = listeOgesi(i, den, skor); eski.replaceWith(yeni); S.ogeler.set(i, yeni); }
+    }
   }
+  S.cizilenAcik = S.idx;
+  if (scroll) S.ogeler.get(S.idx)?.scrollIntoView({ block: 'nearest' });
+  gorunumBilgi();
+}
+function listeyiBastanCiz(den, skor) {
+  const el = $('#list'), frag = document.createDocumentFragment();
+  S.ogeler = new Map(); S.cizilenSira = S.order;
+  for (const i of S.order) { const d = listeOgesi(i, den, skor); S.ogeler.set(i, d); frag.appendChild(d); }
+  el.innerHTML = '';
   el.appendChild(frag);
   if (!S.order.length) el.innerHTML = '<div class="none" style="padding:12px">Bu listede kare yok.</div>';
-  if (scroll && curEl) curEl.scrollIntoView({ block: 'nearest' });
-  gorunumBilgi();
+}
+function listeOgesi(i, den, skor) {
+  const im = S.images[i];
+  const d = document.createElement('div');
+  d.className = 'item' + (i === S.idx ? ' cur' : ''); d.tabIndex = 0;
+  let rozet = '';
+  if (im.rol === 'test') rozet = '<span class="rozet t" title="Test seti">T</span>';
+  else if (im.rol === 'tampon') rozet = '<span class="rozet p" title="Tampon: kullanılmaz">–</span>';
+  else if (den.has(im.name)) rozet = '<span class="rozet d" title="Denetim karesi">D</span>';
+  if (im.labeled && im.model) rozet += '<span class="rozet m" title="Model etiketledi, henüz kontrol edilmedi">M</span>';
+  let sag = im.labeled ? im.count : '', puan = null;
+  if ((!im.labeled || im.model) && S.liste === 'oneri' && skor[im.name] !== undefined) { puan = skor[im.name]; sag = fmt(puan); }
+  d.innerHTML = `<span class="dot${im.labeled && !im.model ? ' done' : ''}"></span><span></span>${rozet}`
+    + (puan !== null ? `<span class="n puan" style="--p:${clamp(puan, 0, 1)}">${sag}</span>` : `<span class="n">${sag}</span>`);
+  d.children[1].textContent = im.kisa || im.name;
+  d.children[1].style.cssText = 'overflow:hidden;text-overflow:ellipsis';
+  const det = S.kuyruk?.detay?.[im.name], ag = S.kuyruk?.agirlik;
+  d.title = puan !== null && det && ag
+    ? `${im.name}\nÖncelik ${fmt(puan)} = ${fmt(ag.u, 1)} × kararsızlık ${fmt(det[0])} + ${fmt(ag.t, 1)} × titreme ${fmt(det[1])}\nModelin önerdiği kutu: ${det[2]}`
+    : im.name;
+  d.onclick = () => load(i);
+  return d;
 }
 function gorunumBilgi() {
   const el = $('#gorunumBilgi'), oneri = oneriKumesi(), s = S.durum?.sayac;

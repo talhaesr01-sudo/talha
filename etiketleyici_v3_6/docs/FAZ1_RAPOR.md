@@ -65,7 +65,9 @@ dokunmuyor.
 - Kutu eşleştirmede Macar algoritması (Hungarian) en iyi eşleşmeyi verir. Ama VOC/COCO değerlendirmesi de
   açgözlü eşleştirme kullanıyor ve IoU ≥ 0,5 ile birkaç kutuda fark ihmal edilebilir. Açgözlü yöntem O(n·m) ve
   bağımlılıksız.
-- Kategori sayımı her liste çiziminde O(N); 10.000 karede birkaç milisaniye.
+- Kategori sayımı O(N) ve ucuz (10.000 karede ≈ 0,1 ms). Pahalı olan sol listenin DOM'unu baştan kurmaktı (10.000
+  satır ≈ 400 ms, her D'de iki kez). Çözüm: liste yalnızca değişince baştan çizilir, kare geçişinde yalnızca iki satır
+  yenilenir (ölçüm aşağıda).
 
 **4. Literatürde daha iyi bir yöntem var mı?** Faz 1 bir algoritma değil, altyapı. Kayıt biçimi şu yöntemlerin
 ihtiyacına göre tasarlandı:
@@ -121,8 +123,17 @@ Literatüre dayanmayan, kendi seçimim olan sabitler: "geometrisi değişmedi" e
 - `testler/test_davranis.py` (yeni): 15 birim testi.
 
 ### Performans etkisi
+Ölçüm: 10.000 kare, model yok (tohum aşaması, ETİKETSİZ listesi 9.990 kare), başsız Chromium.
+
+| İşlem | Önce (Faz 1 ilk hâli) | Sonra |
+|---|---|---|
+| D (onayla + sonraki), medyan | ≈ 1.000 ms (inceleyicinin ölçümü) | 67 ms |
+| Kare geçişinde sol liste güncellemesi | ≈ 400 ms (tam çizim) | 11 ms |
+| Kategori değiştirme (tam çizim) | ≈ 400 ms | 111 ms |
+
+v3.6'da aynı aşamada varsayılan liste yalnızca 100 tohum karesiydi ve D 36–55 ms sürüyordu.
+
 - Kaydetme başına davranış kaydı: n × m IoU matrisi (birkaç kutuda mikrosaniyeler) + bir satır ekleme.
-- Sol menü sayımı her liste çiziminde O(N).
 - Sürüklerken her fare hareketindeki büyüteç çizimi (4K kaynaktan 176 × 176 kesit) kalktı.
 
 ### Bellek / VRAM, RTX3050 uygunluğu
@@ -175,7 +186,26 @@ setinin temiz kalmasına (doğru ölçüm) yardım eder.
 
 ---
 
-## 4. Analizde bulunan, sonraki fazlara bırakılan sorunlar
+## 4. Çapraz inceleme
+
+Faz 1 değişiklikleri 4 boyutta incelendi (liste ve gezinme, davranış kaydı, geriye uyumluluk, arayüz ve performans).
+Her bulgu ayrı bir ajanla çürütülmeye çalışıldı. 24 bulgudan 5'i ayakta kaldı, hepsi düzeltildi. Çürütülenlerin
+bir kısmı v3.6'da da olan davranışlardı. Bunların en önemlileri (çift tıkta çift kayıt, boş kareyi onaylayamama,
+aynı sınıf tuşunun sınıf değişimi sayılması) yine de düzeltildi.
+
+| Bulgu | Önem | Durum |
+|---|---|---|
+| Liste sonu yalnızca ileriye bakıyor; kare kalmışken "liste bitti" deyip liste değiştiriyor | orta | düzeltildi: başa sarma |
+| Ara kayıttan (Ctrl+S) sonraki düzeltmeler model istatistiğinden düşüyor | orta | düzeltildi: ziyaret bazlı kayıt |
+| 10.000 karede her D ≈ 1 sn (sol liste baştan kuruluyor) | orta | düzeltildi: artımlı güncelleme |
+| Kirli karede kategori değişince kayıt yanlış liste adıyla yazılıyor | düşük | düzeltildi: liste ziyaret başında alınır |
+| Dar ekranda "Sadece çiz" düğmesi kırpılıyor | düşük | düzeltildi: `.modes { flex: none }` |
+
+Analizden ayrıca düzeltilenler: test seti değişince eski öneri sırasının yeniden kurulmaması (test ve tampon kareleri
+MODEL ÖNERDİ'ye düşüyordu), denetim karelerinin role göre süzülmemesi, `metin_yaz`'ın geçici dosya adının iş
+parçacığına özgü olmaması (aynı dosyaya eş zamanlı yazımda 500 hatası).
+
+## 5. Analizde bulunan, sonraki fazlara bırakılan sorunlar
 
 | Sorun | Kaynak | Faz |
 |---|---|---|
