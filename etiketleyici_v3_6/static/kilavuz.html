@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kılavuz · Etiketleyici v3.6</title>
+<style>
+  :root {
+    --bg: #E6E9EC; --panel: #F6F7F8; --line: #CBD2D8; --text: #1C232A; --muted: #5B6670;
+    --accent: #B97C06; --accent-soft: #F3E3BF; --pos: #2F9E5B; --neg: #D2423A;
+    --c0: #B97C06; --c1: #2F7FC0; --c2: #C2405F; --c3: #3C9A6A;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14181C; --panel: #1B2025; --line: #2D343B; --text: #E3E7EB; --muted: #8C97A1;
+      --accent: #E9AE3A; --accent-soft: #3A3020; --pos: #5CC98A; --neg: #F27A72;
+      --c0: #E9AE3A; --c1: #4FA3E0; --c2: #E0587A; --c3: #5CC28A;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  a { color: var(--accent); }
+  .ust {
+    position: sticky; top: 0; z-index: 5; background: var(--panel); border-bottom: 1px solid var(--line);
+    padding: 10px 20px; display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center;
+  }
+  .ust h1 { font-size: 15px; margin: 0; font-weight: 650; }
+  .ust .kaynak { color: var(--muted); font-size: 13px; }
+  .ust label { font-size: 13px; display: flex; align-items: center; gap: 8px; }
+  .ust input[type=range] { width: 150px; accent-color: var(--accent); }
+  .ust output { font-variant-numeric: tabular-nums; font-weight: 650; min-width: 2.6em; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg button { border: 0; background: transparent; padding: 4px 10px; font: inherit; font-size: 13px; color: inherit; cursor: pointer; }
+  .seg button.on { background: var(--accent); color: #1C232A; font-weight: 600; }
+  .linkbtn { border: 0; background: none; color: var(--accent); cursor: pointer; font: inherit; font-size: 13px; text-decoration: underline; padding: 0; }
+  button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  main { max-width: 860px; margin: 0 auto; padding: 8px 20px 60px; }
+  section { padding: 18px 0 8px; border-bottom: 1px solid var(--line); }
+  section:last-of-type { border-bottom: 0; }
+  h2 { font-size: 20px; margin: 10px 0 6px; font-weight: 650; }
+  h3 { font-size: 15px; margin: 16px 0 4px; }
+  p { margin: 8px 0; max-width: 72ch; }
+  .giris { font-size: 16px; color: var(--muted); max-width: 66ch; }
+  .formul {
+    font: 15px/1.5 "Cambria Math", "STIX Two Math", Cambria, Georgia, serif; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; margin: 10px 0; overflow-x: auto; white-space: nowrap;
+  }
+  .canli { border-left: 3px solid var(--accent); padding: 4px 0 4px 12px; margin: 10px 0; }
+  .canli p { margin: 4px 0; }
+  .kucuk { font-size: 13px; color: var(--muted); }
+  .uyari { border: 1px solid var(--accent); background: var(--accent-soft); border-radius: 8px; padding: 10px 14px; margin: 16px 0; }
+  .uyari.hata { border-color: var(--neg); background: transparent; }
+  .btn { border: 1px solid var(--line); background: var(--bg); border-radius: 6px; padding: 5px 12px; cursor: pointer; font: inherit; font-size: 14px; color: inherit; }
+  .btn.ana { background: var(--accent); border-color: var(--accent); color: #1C232A; font-weight: 600; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .tablo { overflow-x: auto; margin: 10px 0; }
+  table { border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+  th, td { padding: 5px 10px; text-align: right; border-bottom: 1px solid var(--line); }
+  th:first-child, td:first-child { text-align: left; }
+  th { font-weight: 600; color: var(--muted); }
+  .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: 0; }
+  .grafikler { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; margin: 12px 0; }
+  figure { margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+  figcaption { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  svg { display: block; width: 100%; height: auto; }
+  svg text { font: 11px system-ui, sans-serif; fill: var(--muted); }
+  svg .eksen { stroke: var(--line); }
+  .cubuk { display: grid; grid-template-columns: 70px 1fr 48px; gap: 4px 10px; align-items: center; font-size: 13px; max-width: 520px; }
+  .cubuk i { display: block; height: 10px; border-radius: 3px; background: var(--accent); }
+  .cubuk .zemin { background: var(--line); border-radius: 3px; }
+  .cubuk b { text-align: right; font-variant-numeric: tabular-nums; }
+  table.matris td { min-width: 76px; text-align: center; }
+  table.matris td.kosegen { font-weight: 650; }
+  table.matris th.satir { text-align: left; }
+  .gizli { display: none !important; }
+  .iki { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 640px) { .iki { grid-template-columns: 1fr; } .ust { position: static; } }
+  @media (prefers-reduced-motion: no-preference) { .cubuk i { transition: width .25s; } }
+</style>
+</head>
+<body>
+<div class="ust">
+  <h1>Kılavuz: sonuçlar nasıl okunur</h1>
+  <span class="kaynak" id="kaynak">Yükleniyor…</span>
+  <label>Güven eşiği <input type="range" id="esik" min="0" max="18" step="1" value="4" aria-describedby="esikNot"><output id="esikDeger">0,25</output></label>
+  <span class="kucuk" id="esikNot"></span>
+  <span class="seg" role="group" aria-label="Hangi öneriler">
+    <button id="sTemiz" class="on" title="Grup ve kopya kutu filtresinden geçmiş öneriler: senin ekranda gördüğün kutular">Temizlenmiş öneriler</button>
+    <button id="sHam" title="Modelin ham çıktısı: öğrenme eğrisi bununla ölçülür">Ham çıktı</button>
+  </span>
+  <a href="/" class="kucuk">Etiketleyici’ye dön</a>
+</div>
+
+<main>
+  <section>
+    <h2>Bu sayfa ne gösteriyor?</h2>
+    <p class="giris">Model sekmesindeki her sayının ne anlama geldiğini, senin modelinin test setindeki sonuçlarıyla gösterir.
+      Üstteki <b>güven eşiğini</b> kaydırınca bütün tablolar ve grafikler o eşiğe göre yeniden hesaplanır.</p>
+    <div id="hazirDegil" class="uyari gizli"></div>
+    <div id="kisaca" class="canli"></div>
+  </section>
+
+  <section id="b1">
+    <h2>Doğru, yanlış alarm, kaçırılan</h2>
+    <p>Model bir kutu önerdiğinde program, bu kutunun gerçek bir kutuyla yeterince örtüşüp örtüşmediğine bakar.
+      Örtüşme ölçüsü <b>IoU</b>’dur (Intersection over Union): iki kutunun kesişim alanı, birleşim alanına bölünür.
+      IoU en az 0,5 ise ve sınıf da aynıysa kutu doğru sayılır.</p>
+    <div class="formul">IoU = kesişim alanı ÷ birleşim alanı &nbsp;&nbsp;·&nbsp;&nbsp; doğru sayılması için IoU ≥ 0,5</div>
+    <p><b>TP</b> (doğru): kutu gerçek bir nesneye denk geliyor. <b>FP</b> (yanlış alarm): kutu hiçbir nesneye denk gelmiyor ya da aynı nesneye ikinci kez konmuş.
+      <b>FN</b> (kaçırılan): bir nesneye hiç kutu konmamış. Güven eşiğinin altındaki kutular hiç sayılmaz; onları ekranda da görmezsin.</p>
+    <div class="tablo" id="tSayim"></div>
+  </section>
+
+  <section id="b2">
+    <h2>Precision, recall ve F1</h2>
+    <p><b>Precision</b> (kesinlik) “önerdiklerimin ne kadarı doğru?”, <b>recall</b> (duyarlılık) “gerçek nesnelerin ne kadarını buldum?” sorusunu cevaplar.
+      Precision düşükse çok silersin; recall düşükse çok çizersin. <b>F1</b> ikisinin dengesidir: biri çok düşükse F1 de düşer.</p>
+    <div class="formul">Precision = TP ÷ (TP + FP) &nbsp;&nbsp;·&nbsp;&nbsp; Recall = TP ÷ (TP + FN) &nbsp;&nbsp;·&nbsp;&nbsp; F1 = 2 × P × R ÷ (P + R)</div>
+    <div id="prfCanli"></div>
+  </section>
+
+  <section id="b3">
+    <h2>Eşik seçimi</h2>
+    <p>Eşiği yükseltince model yalnızca emin olduğu kutuları önerir: precision artar, recall düşer. Düşürünce tersi olur.
+      Grafikte üç çizgi var: precision, recall ve F1. Dikey çizgi senin seçtiğin eşik, nokta ise F1’in en yüksek olduğu eşiktir.</p>
+    <div class="grafikler" id="gEsik"></div>
+    <div id="esikCanli"></div>
+  </section>
+
+  <section id="b4">
+    <h2>AP ve precision-recall eğrisi</h2>
+    <p>Precision ve recall tek bir eşiğe bağlıdır. <b>AP</b> (Average Precision, ortalama kesinlik) ise bütün eşikleri birlikte özetler:
+      precision-recall eğrisinin altında kalan alandır. 1’e yakınsa model, nesnelerin çoğunu bulurken yanlış alarmı az tutabiliyor demektir.
+      AP eşikten bağımsızdır; bu yüzden üstteki kaydırıcı onu değiştirmez, yalnızca eğri üzerindeki noktayı taşır.</p>
+    <div class="formul">AP = ∫₀¹ precision(recall) d(recall) &nbsp;&nbsp;·&nbsp;&nbsp; 101 noktalı hesap (COCO ve Ultralytics ile aynı)</div>
+    <div class="grafikler" id="gPR"></div>
+  </section>
+
+  <section id="b5">
+    <h2>mAP50 ve mAP50-95</h2>
+    <p><b>mAP50</b>, sınıfların AP50 değerlerinin ortalamasıdır; “50” doğru sayılma şartının IoU ≥ 0,50 olduğunu söyler.
+      <b>mAP50-95</b> aynı hesabı şartı 0,50’den 0,95’e kadar 10 kez sıkılaştırarak yapar ve ortalamasını alır; kutunun kenarlarının ne kadar iyi oturduğunu ölçer.</p>
+    <div class="formul">mAP50 = (AP50₁ + AP50₂ + …) ÷ sınıf sayısı &nbsp;&nbsp;·&nbsp;&nbsp; mAP50-95 = 10 IoU eşiğindeki (0,50; 0,55; …; 0,95) mAP’lerin ortalaması</div>
+    <div class="tablo" id="tAP"></div>
+    <div id="apCanli"></div>
+  </section>
+
+  <section id="b6">
+    <h2>Karışıklık tablosu (confusion matrix)</h2>
+    <p>Hangi sınıfın neyle karıştırıldığını gösterir. Satırlar gerçekte ne olduğunu, sütunlar modelin ne dediğini söyler.
+      Köşegen (kalın) doğrulardır. Son satır <b>arka plan</b>dır: orada nesne yokken model kutu koymuş (yanlış alarm).
+      Son sütun <b>kaçırıldı</b>dır: nesne varken hiç kutu konmamış.</p>
+    <div class="tablo" id="tMatris"></div>
+    <div id="matrisCanli"></div>
+    <p class="kucuk">Not: Bu tabloda kutular önce sınıfa bakmadan, yalnızca konuma göre eşlenir; böylece “insan, taşıt sanıldı” gibi karışıklıklar görünür.
+      Bu yüzden sayılar, sınıf başına TP/FP tablosundan birkaç adet farklı olabilir.</p>
+  </section>
+
+  <section id="b7">
+    <h2>Temizleme ne değiştirdi?</h2>
+    <p>v3.6’da model önerileri sana gösterilmeden önce iki filtreden geçer: <b>grup kutusu filtresi</b> (yan yana iki nesneyi birden içine alan büyük kutuyu atar)
+      ve <b>kopya kutu sınırı</b> (aynı nesneye konmuş ikinci kutuyu atar). Öğrenme eğrisi eski turlarla karşılaştırılabilsin diye ham çıktıyla ölçülür;
+      aşağıdaki tablo ikisinin farkını gösterir.</p>
+    <div class="tablo" id="tTemiz"></div>
+  </section>
+
+  <section id="b8">
+    <h2>Model ne kadar emin? MC Dropout ve Deep Ensemble</h2>
+    <p>Aktif öğrenmenin özü şu sorudur: model hangi karede gerçekten emin değil? Program bugün modelin kendi güven puanına bakıyor.
+      Güveni %50 civarındaki kutular en kararsız sayılır:</p>
+    <div class="formul">kararsızlık u = 1 − |2p − 1| &nbsp;&nbsp;(p = 0,5 → u = 1, en kararsız; p = 0,95 → u = 0,1)</div>
+    <p>Buna ek olarak <b>titreme</b> var: bir nesne önceki ve sonraki karede görünüp bu karede görünmüyorsa model büyük olasılıkla burada hata yapmıştır.
+      Öncelik puanı ikisinin ağırlıklı toplamıdır: öncelik = 0,7 × kararsızlık + 0,3 × titreme. Öneri listesinde sağdaki sayı budur.</p>
+    <p>Ama tek bir model yanılırken de emin olabilir. Aşağıdaki iki yöntem bunu çözmeye çalışır.</p>
+    <div class="iki">
+      <div>
+        <h3>MC Dropout</h3>
+        <p>Eğitimde kullanılan dropout (rastgele bazı nöronları kapatma) tahmin sırasında da açık bırakılır ve aynı kare örneğin 10 kez tahmin edilir.
+          Her seferinde biraz farklı bir model gibi davranır.</p>
+        <p><b>Örnek:</b> 10 tahminin 10’unda aynı yerde insan çıkıyorsa model emindir. 5’inde çıkıp 5’inde çıkmıyorsa kararsızdır; o kare önce sana gösterilmelidir.</p>
+        <p class="kucuk"><b>Bizim için sorun:</b> YOLO11’in algılama katmanlarında dropout yok, eklenip yeniden eğitilmesi gerekir. Tahmin süresi de 10 katına çıkar.</p>
+      </div>
+      <div>
+        <h3>Deep Ensemble (derin topluluk)</h3>
+        <p>Farklı başlangıçlarla birkaç ayrı model eğitilir (örneğin 3–5) ve hepsi aynı kareyi tahmin eder. Modellerin anlaşmazlığı belirsizliktir.</p>
+        <p><b>Örnek:</b> 5 modelin 5’i “burada insan var” diyorsa güvenilirdir. 2’si var, 3’ü yok diyorsa kararsızdır: oran q = 2 ÷ 5 = 0,4 ve u = 1 − |2 × 0,4 − 1| = 0,8.</p>
+        <p class="kucuk"><b>Bizim için sorun:</b> eğitim süresi 3–5 katına çıkar. Ucuz sürümü: önceki turun modeli zaten diskte; son iki tur aynı kareyi tahmin eder, tahmin süresi yalnızca 2 katına çıkar.</p>
+      </div>
+    </div>
+    <p class="kucuk">Durum: ikisi de araştırma aşamasında, v3.6’da yok. Kaynaklar: Gal ve Ghahramani, “Dropout as a Bayesian Approximation” (ICML 2016);
+      Lakshminarayanan vd., “Simple and Scalable Predictive Uncertainty Estimation using Deep Ensembles” (NeurIPS 2017); Haussmann vd., “Scalable Active Learning for Object Detection” (IEEE IV 2020).</p>
+  </section>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const fmt = (v, n = 2) => (v === null || v === undefined || Number.isNaN(v)) ? '–' : Number(v).toFixed(n).replace('.', ',');
+const yuzde = v => `%${Math.round((v || 0) * 100)}`;
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const RENK = i => `var(--c${i % 4})`;
+const V = { temiz: null, ham: null, mod: 'temiz', i: 4, bekle: null };
+
+async function al(u) {
+  const r = await fetch(u);
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
+  return r.json();
+}
+const veri = () => V[V.mod];
+const ad = k => esc(veri().siniflar[k] ?? 'sınıf ' + k);
+const esikler = () => { const s = Object.values(veri().metrik.sinif)[0]; return s.esik_egri.t; };
+const esik = () => esikler()[V.i];
+
+async function yukle() {
+  let t;
+  try { t = await al('/api/analiz?temiz=1'); } catch (e) { $('#kaynak').textContent = 'Sunucuya ulaşılamadı: ' + e.message; return; }
+  V.temiz = t;
+  if (!t.hazir) { hazirDegil(t); return; }
+  try { V.ham = await al('/api/analiz?temiz=0'); } catch (e) { V.ham = null; }
+  $('#hazirDegil').classList.add('gizli');
+  const ts = esikler();
+  let en = 0;
+  ts.forEach((v, i) => { if (Math.abs(v - t.conf) < Math.abs(ts[en] - t.conf)) en = i; });
+  if (V.bekle === null) V.i = en;
+  V.bekle = false;
+  $('#esik').max = ts.length - 1;
+  $('#esik').value = V.i;
+  ciz();
+}
+
+function hazirDegil(t) {
+  const el = $('#hazirDegil');
+  el.classList.remove('gizli');
+  $('#kaynak').textContent = t.son_tur ? `Tur ${t.son_tur} modeli` : 'Henüz model yok';
+  const a = t.analiz || {};
+  if (!t.son_tur) {
+    el.innerHTML = '<b>Henüz eğitilmiş model yok.</b> İlk tur bitince bu sayfa senin modelinin sayılarıyla dolar. Aşağıdaki açıklamalar yine de okunabilir.';
+  } else if (a.calisiyor) {
+    el.innerHTML = `<b>Test kareleri tahmin ediliyor…</b> ${esc(a.mesaj || '')}${a.ilerleme != null ? ' · ' + yuzde(a.ilerleme) : ''} · ${a.gecen_sn ?? 0} sn. Bitince sayfa kendiliğinden dolar.`;
+    setTimeout(yukle, 2000);
+  } else {
+    el.innerHTML = `<b>Canlı sayılar için bir adım gerekli.</b> Tur ${t.son_tur} modeli v3.5 ile eğitildi ve o sürüm test tahminlerini saklamıyordu.
+      Son modelle test karelerini bir kez tahmin edersem (40 karede yaklaşık 1–2 dakika) bu sayfa senin sayılarınla dolar.
+      Sonraki turlarda bu adım kendiliğinden yapılır.<br><button class="btn ana" id="bHazirla" style="margin-top:8px">Test tahminlerini hazırla</button>`
+      + (a.hata ? `<div class="uyari hata">Son deneme başarısız oldu: ${esc(a.hata)}</div>` : '');
+    $('#bHazirla').onclick = async () => {
+      $('#bHazirla').disabled = true;
+      try { const r = await fetch('/api/analiz_hazirla', { method: 'POST' }); const j = await r.json(); if (!r.ok) throw new Error(j.error); } catch (e) {
+        el.insertAdjacentHTML('beforeend', `<div class="uyari hata">${esc(e.message)}</div>`); $('#bHazirla').disabled = false; return;
+      }
+      setTimeout(yukle, 1500);
+    };
+  }
+  $('#kisaca').innerHTML = '<p class="kucuk">Örnek (tur 4 sonuçlarından, yaklaşık): taşıt sınıfında 138 nesnenin 120’si bulunmuş ama yaklaşık 380 yanlış alarm var.'
+    + ' Precision = 120 ÷ (120 + 380) = 0,24, recall = 120 ÷ 138 = 0,87, F1 = 2 × 0,24 × 0,87 ÷ 1,11 ≈ 0,38. Asıl sorun kaçırmak değil, yanlış alarm.</p>';
+}
+
+/* Seçili eşikte bir sınıfın sayıları */
+function sinifSay(v) {
+  const e = v.esik_egri, i = V.i, tp = e.tp[i], fp = e.fp[i];
+  return { tp, fp, fn: v.nesne - tp, p: e.p[i], r: e.r[i], f1: e.f1[i] };
+}
+
+function ciz() {
+  const d = veri(), m = d.metrik, t = esik();
+  $('#esikDeger').textContent = fmt(t);
+  $('#esikNot').innerHTML = `Ön etiket eşiğin: ${fmt(d.conf)}` + (Math.abs(t - d.conf) > 0.024 ? ` <button class="linkbtn" id="esigeDon">ona dön</button>` : '');
+  $('#esigeDon')?.addEventListener('click', () => { const ts = esikler(); let en = 0; ts.forEach((v, i) => { if (Math.abs(v - d.conf) < Math.abs(ts[en] - d.conf)) en = i; }); V.i = en; $('#esik').value = en; ciz(); });
+  const nesne = Object.values(m.sinif).reduce((a, v) => a + v.nesne, 0);
+  $('#kaynak').textContent = `Tur ${d.tur} modeli · test setinde ${m.test_kare} kare, ${nesne} nesne · ${V.mod === 'temiz' ? 'temizlenmiş öneriler' : 'ham çıktı'}`;
+  const siniflar = Object.entries(m.sinif);
+
+  // Kısaca
+  let enKotu = null, k = [];
+  for (const [kk, v] of siniflar) {
+    const s = sinifSay(v);
+    k.push(`<p><b>${ad(kk)}</b>: ${v.nesne} nesneden ${s.tp} tanesi bulundu (recall ${fmt(s.r)}); ${s.tp + s.fp} öneriden ${s.fp} tanesi yanlış alarm (precision ${fmt(s.p)}). F1 ${fmt(s.f1)}.`
+      + ` F1’i en yüksek yapan eşik <b>${fmt(v.en_iyi_esik)}</b> (F1 ${fmt(v.en_iyi_f1)}).</p>`);
+    if (!enKotu || s.f1 < enKotu.f1) enKotu = { kk, ...s };
+  }
+  if (enKotu) k.push(`<p>En zayıf sınıf <b>${ad(enKotu.kk)}</b>: ${enKotu.p < enKotu.r ? 'sorun kaçırmak değil, yanlış alarm. Eşiği yükseltmek ya da yanlış alarmları silmek en çok onu iyileştirir.' : 'sorun yanlış alarm değil, kaçırılan nesneler. Eksik kutuları çizmek en çok onu iyileştirir.'}</p>`);
+  $('#kisaca').innerHTML = `<p class="kucuk">Güven eşiği ${fmt(t)} ile, ${V.mod === 'temiz' ? 'ekranda gördüğün temizlenmiş önerilere' : 'modelin ham çıktısına'} göre:</p>` + k.join('');
+
+  // 1) sayım tablosu
+  $('#tSayim').innerHTML = '<table><tr><th>Sınıf</th><th>Gerçek nesne</th><th>TP (doğru)</th><th>FP (yanlış alarm)</th><th>FN (kaçırılan)</th></tr>'
+    + siniflar.map(([kk, v]) => { const s = sinifSay(v); return `<tr><td><span class="sw" style="background:${RENK(+kk)}"></span>${ad(kk)}</td><td>${v.nesne}</td><td>${s.tp}</td><td>${s.fp}</td><td>${s.fn}</td></tr>`; }).join('')
+    + '</table>';
+
+  // 2) P, R, F1 hesapları
+  $('#prfCanli').innerHTML = siniflar.map(([kk, v]) => {
+    const s = sinifSay(v);
+    const bar = (et, x) => `<span>${et}</span><span class="zemin"><i style="width:${Math.round(x * 100)}%;background:${RENK(+kk)}"></i></span><b>${fmt(x)}</b>`;
+    return `<div class="canli"><p><b>${ad(kk)}</b> · Precision = ${s.tp} ÷ (${s.tp} + ${s.fp}) = <b>${fmt(s.p)}</b> → doğru öneri oranı ${yuzde(s.p)}.
+      Recall = ${s.tp} ÷ (${s.tp} + ${s.fn}) = <b>${fmt(s.r)}</b> → bulunan nesne oranı ${yuzde(s.r)}.
+      F1 = 2 × ${fmt(s.p)} × ${fmt(s.r)} ÷ (${fmt(s.p)} + ${fmt(s.r)}) = <b>${fmt(s.f1)}</b>.</p>
+      <div class="cubuk">${bar('Precision', s.p)}${bar('Recall', s.r)}${bar('F1', s.f1)}</div></div>`;
+  }).join('');
+
+  // 3) eşik grafikleri
+  $('#gEsik').innerHTML = siniflar.map(([kk, v]) => `<figure><figcaption><span class="sw" style="background:${RENK(+kk)}"></span>${ad(kk)}: eşiğe göre P, R ve F1</figcaption>${esikSvg(v, +kk, d.conf)}</figure>`).join('');
+  $('#esikCanli').innerHTML = `<p class="kucuk">Kesikli dikey çizgi ön etiket eşiğin (${fmt(d.conf)}). Eşiği Ayarlar’dan değiştirdikten sonra Model sekmesindeki “M etiketlerini yenile”ye bas.</p>`;
+
+  // 4) PR eğrileri
+  $('#gPR').innerHTML = siniflar.map(([kk, v]) => `<figure><figcaption><span class="sw" style="background:${RENK(+kk)}"></span>${ad(kk)}: AP50 = ${fmt(v.ap50)}</figcaption>${prSvg(v, +kk)}</figure>`).join('');
+
+  // 5) AP tablosu
+  $('#tAP').innerHTML = '<table><tr><th>Sınıf</th><th>AP50</th><th>AP50-95</th><th>Fark</th></tr>'
+    + siniflar.map(([kk, v]) => `<tr><td><span class="sw" style="background:${RENK(+kk)}"></span>${ad(kk)}</td><td>${fmt(v.ap50)}</td><td>${fmt(v.ap5095)}</td><td>${fmt(v.ap50 - v.ap5095)}</td></tr>`).join('')
+    + `<tr><td><b>Ortalama (mAP)</b></td><td><b>${fmt(m.map50)}</b></td><td><b>${fmt(m.map5095)}</b></td><td>${fmt(m.map50 - m.map5095)}</td></tr></table>`;
+  const farkli = siniflar.reduce((a, [kk, v]) => (!a || v.ap50 - v.ap5095 > a.f) ? { kk, f: v.ap50 - v.ap5095 } : a, null);
+  $('#apCanli').innerHTML = `<div class="canli"><p>mAP50 = (${siniflar.map(([, v]) => fmt(v.ap50)).join(' + ')}) ÷ ${siniflar.length} = <b>${fmt(m.map50)}</b>.</p>`
+    + (farkli ? `<p>AP50 ile AP50-95 arasındaki fark en çok <b>${ad(farkli.kk)}</b> sınıfında (${fmt(farkli.f)}): model nesneleri buluyor ama kutu kenarları tam oturmuyor.
+       Model senin kutularından öğrendiği için kenarları dikkatle çizmek (büyüteç, ok tuşları) mAP50-95’i doğrudan artırır.</p>` : '') + '</div>';
+
+  // 6) karışıklık tablosu
+  const M = m.karisiklik_esik[t.toFixed(2)] || m.karisiklik, nc = siniflar.length;
+  const etiket = i => i < nc ? ad(i) : null;
+  let en = null, h = `<table class="matris"><tr><th>Gerçek ↓ / Model →</th>${M[0].map((_, j) => `<th>${etiket(j) ?? 'kaçırıldı'}</th>`).join('')}</tr>`;
+  M.forEach((satir, i) => {
+    const top = satir.reduce((a, b) => a + b, 0) || 1;
+    h += `<tr><th class="satir">${etiket(i) ?? 'arka plan (nesne yok)'}</th>` + satir.map((x, j) => {
+      if (i === nc && j === nc) return '<td>–</td>';
+      if (i !== j && x > 0 && (!en || x > en.x)) en = { i, j, x };
+      const oran = i === nc ? Math.min(1, x / Math.max(1, Math.max(...M.flat()))) : x / top;
+      const renk = i === j ? 'var(--pos)' : 'var(--neg)';
+      return `<td class="${i === j ? 'kosegen' : ''}" style="background:color-mix(in srgb, ${renk} ${Math.round(oran * 45)}%, transparent)">${x}</td>`;
+    }).join('') + '</tr>';
+  });
+  $('#tMatris').innerHTML = h + '</table>';
+  if (en) {
+    const ac = en.i === nc ? `<b>arka plan → ${ad(en.j)}</b> (${en.x}): model, nesne olmayan yerlere ${ad(en.j)} kutusu koyuyor. Bunlar yanlış alarmların kendisi.`
+      : en.j === nc ? `<b>${ad(en.i)} → kaçırıldı</b> (${en.x}): ${ad(en.i)} nesnelerine hiç kutu konmamış.`
+      : `<b>${ad(en.i)} → ${ad(en.j)}</b> (${en.x}): gerçek ${ad(en.i)} nesneleri ${ad(en.j)} sanılmış.`;
+    $('#matrisCanli').innerHTML = `<div class="canli"><p>En kötü hücre ${ac}</p></div>`;
+  } else $('#matrisCanli').innerHTML = '';
+
+  // 7) ham ve temiz karşılaştırması
+  if (V.ham && V.temiz?.hazir) {
+    const sat = siniflar.map(([kk]) => {
+      const h0 = V.ham.metrik.sinif[kk], t0 = V.temiz.metrik.sinif[kk];
+      const sh = { ...sinifSayDis(h0) }, st = { ...sinifSayDis(t0) };
+      return `<tr><td><span class="sw" style="background:${RENK(+kk)}"></span>${ad(kk)}</td><td>${sh.tp} → ${st.tp}</td><td>${sh.fp} → <b>${st.fp}</b></td><td>${fmt(sh.p)} → <b>${fmt(st.p)}</b></td><td>${fmt(sh.r)} → ${fmt(st.r)}</td><td>${fmt(sh.f1)} → <b>${fmt(st.f1)}</b></td></tr>`;
+    }).join('');
+    $('#tTemiz').innerHTML = `<table><tr><th>Sınıf (eşik ${fmt(t)})</th><th>TP</th><th>FP</th><th>Precision</th><th>Recall</th><th>F1</th></tr>${sat}</table>`
+      + `<p class="kucuk">Ham → temizlenmiş. Ayarlar: kopya kutu sınırı ${fmt(d.oneri_nms)}, grup kutusu filtresi ${d.grup_filtre ? 'açık' : 'kapalı'}.</p>`;
+  } else $('#tTemiz').innerHTML = '<p class="kucuk">Karşılaştırma için ham çıktı yüklenemedi.</p>';
+}
+function sinifSayDis(v) { const e = v.esik_egri, i = V.i; return { tp: e.tp[i], fp: e.fp[i], p: e.p[i], r: e.r[i], f1: e.f1[i] }; }
+
+/* ---- grafikler (elle çizilmiş SVG) ---- */
+function eksenler(Wd, Hd, L, B, T, R, xEt, yEt) {
+  const X = v => L + v * (Wd - L - R), Y = v => Hd - B - v * (Hd - T - B);
+  let g = '';
+  for (const v of [0, 0.25, 0.5, 0.75, 1]) {
+    g += `<line class="eksen" x1="${L}" x2="${Wd - R}" y1="${Y(v)}" y2="${Y(v)}"/><text x="${L - 5}" y="${Y(v) + 3.5}" text-anchor="end">${fmt(v, v % 0.5 ? 2 : 1)}</text>`;
+    g += `<text x="${X(v)}" y="${Hd - B + 14}" text-anchor="middle">${fmt(v, v % 0.5 ? 2 : 1)}</text>`;
+  }
+  g += `<text x="${(L + Wd - R) / 2}" y="${Hd - 4}" text-anchor="middle">${xEt}</text>`;
+  g += `<text x="10" y="${(T + Hd - B) / 2}" text-anchor="middle" transform="rotate(-90 10 ${(T + Hd - B) / 2})">${yEt}</text>`;
+  return { g, X, Y };
+}
+function esikSvg(v, kk, conf) {
+  const Wd = 340, Hd = 210, L = 40, B = 34, T = 12, R = 12, e = v.esik_egri;
+  const { g, X, Y } = eksenler(Wd, Hd, L, B, T, R, 'güven eşiği', 'değer');
+  const yol = a => e.t.map((t, i) => `${i ? 'L' : 'M'}${X(t).toFixed(1)},${Y(a[i]).toFixed(1)}`).join(' ');
+  const t = e.t[V.i], bi = e.t.indexOf(v.en_iyi_esik);
+  let s = g;
+  s += `<line x1="${X(conf)}" x2="${X(conf)}" y1="${T}" y2="${Hd - B}" style="stroke:var(--muted);stroke-dasharray:3 3"/>`;
+  s += `<line x1="${X(t)}" x2="${X(t)}" y1="${T}" y2="${Hd - B}" style="stroke:var(--text);stroke-width:1.2"/>`;
+  s += `<path d="${yol(e.p)}" style="fill:none;stroke:${RENK(kk)};stroke-width:2"/>`;
+  s += `<path d="${yol(e.r)}" style="fill:none;stroke:${RENK(kk)};stroke-width:2;stroke-dasharray:6 4"/>`;
+  s += `<path d="${yol(e.f1)}" style="fill:none;stroke:var(--text);stroke-width:2.4"/>`;
+  if (bi >= 0) s += `<circle cx="${X(e.t[bi])}" cy="${Y(e.f1[bi])}" r="4.5" style="fill:var(--text)"><title>En iyi F1 ${fmt(e.f1[bi])} (eşik ${fmt(e.t[bi])})</title></circle>`;
+  // Açıklama grafiğin altında, çizgilerin üstüne binmesin diye
+  const LY = Hd + 6, cizgi = (x, stil) => `<line x1="${x}" x2="${x + 18}" y1="${LY}" y2="${LY}" style="${stil}"/>`;
+  s += cizgi(L, `stroke:${RENK(kk)};stroke-width:2`) + `<text x="${L + 22}" y="${LY + 3.5}">precision ${fmt(e.p[V.i])}</text>`;
+  s += cizgi(L + 104, `stroke:${RENK(kk)};stroke-width:2;stroke-dasharray:6 4`) + `<text x="${L + 126}" y="${LY + 3.5}">recall ${fmt(e.r[V.i])}</text>`;
+  s += cizgi(L + 200, 'stroke:var(--text);stroke-width:2.4') + `<text x="${L + 222}" y="${LY + 3.5}">F1 ${fmt(e.f1[V.i])}</text>`;
+  return `<svg viewBox="0 0 ${Wd} ${Hd + 16}" role="img" aria-label="Eşiğe göre precision, recall ve F1">${s}</svg>`;
+}
+function prSvg(v, kk) {
+  const Wd = 340, Hd = 230, L = 40, B = 34, T = 12, R = 12;
+  const { g, X, Y } = eksenler(Wd, Hd, L, B, T, R, 'recall', 'precision');
+  const pr = v.pr || [];
+  const yol = pr.map((p, i) => `${i ? 'L' : 'M'}${X(i / 100).toFixed(1)},${Y(p).toFixed(1)}`).join(' ');
+  const alan = `${yol} L${X(1)},${Y(0)} L${X(0)},${Y(0)} Z`;
+  const s = sinifSay(v);
+  let o = g + `<path d="${alan}" style="fill:${RENK(kk)};fill-opacity:.16;stroke:none"/><path d="${yol}" style="fill:none;stroke:${RENK(kk)};stroke-width:2"/>`;
+  o += `<circle cx="${X(s.r)}" cy="${Y(s.p)}" r="5" style="fill:var(--text)"><title>Eşik ${fmt(esik())}: P ${fmt(s.p)}, R ${fmt(s.r)}</title></circle>`;
+  const sag = X(s.r) > Wd * 0.55;
+  o += `<text x="${X(s.r) + (sag ? -9 : 9)}" y="${Math.max(Y(s.p) - 9, T + 10)}" text-anchor="${sag ? 'end' : 'start'}" style="fill:var(--text)">eşik ${fmt(esik())}: P ${fmt(s.p)}, R ${fmt(s.r)}</text>`;
+  o += `<text x="${X(0.05)}" y="${Y(0.08)}" style="fill:var(--text)">taralı alan = AP50 = ${fmt(v.ap50)}</text>`;
+  return `<svg viewBox="0 0 ${Wd} ${Hd}" role="img" aria-label="Precision-recall eğrisi">${o}</svg>`;
+}
+
+$('#esik').addEventListener('input', e => { V.i = +e.target.value; if (veri()?.hazir) ciz(); });
+$('#sTemiz').onclick = () => { V.mod = 'temiz'; $('#sTemiz').classList.add('on'); $('#sHam').classList.remove('on'); if (veri()?.hazir) ciz(); };
+$('#sHam').onclick = () => { if (!V.ham?.hazir) return; V.mod = 'ham'; $('#sHam').classList.add('on'); $('#sTemiz').classList.remove('on'); ciz(); };
+yukle();
+</script>
+</body>
+</html>

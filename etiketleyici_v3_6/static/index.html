@@ -1,0 +1,1633 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Etiketleyici v3.6</title>
+<style>
+  :root {
+    --bg: #E6E9EC; --panel: #F6F7F8; --line: #CBD2D8; --text: #1C232A; --muted: #5B6670;
+    --accent: #B97C06; --accent-soft: #F3E3BF; --stage: #2A3138;
+    --pos: #2F9E5B; --neg: #D2423A;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14181C; --panel: #1B2025; --line: #2D343B; --text: #E3E7EB; --muted: #8C97A1;
+      --accent: #E9AE3A; --accent-soft: #3A3020; --stage: #0D1013;
+      --pos: #5CC98A; --neg: #F27A72;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: grid; grid-template-columns: 230px 1fr 300px; grid-template-rows: 52px 1fr;
+    height: 100%; overflow: hidden;
+  }
+  button { font: inherit; color: inherit; }
+  button:focus-visible, .item:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  header {
+    grid-column: 1 / -1; display: flex; align-items: center; gap: 18px;
+    padding: 0 16px; background: var(--panel); border-bottom: 1px solid var(--line);
+  }
+  header h1 { font-size: 15px; margin: 0; font-weight: 650; letter-spacing: .01em; }
+  #fname { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 30vw; }
+  #progress { font-variant-numeric: tabular-nums; }
+  .spacer { flex: 1; }
+  .modes { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .modes button { border: 0; background: transparent; padding: 6px 12px; cursor: pointer; }
+  .modes button.on { background: var(--accent); color: #1C232A; font-weight: 600; }
+  #hint { color: var(--muted); font-size: 13px; white-space: nowrap; }
+  #saveState { font-size: 13px; color: var(--muted); min-width: 92px; text-align: right; }
+  #saveState.dirty { color: var(--accent); }
+
+  #sol { display: flex; flex-direction: column; min-height: 0; background: var(--panel); border-right: 1px solid var(--line); }
+  #list { overflow: auto; flex: 1; min-height: 0; }
+  .item {
+    display: flex; align-items: center; gap: 8px; padding: 5px 12px; cursor: pointer;
+    font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .item:hover { background: var(--accent-soft); }
+  .item.cur { background: var(--accent); color: #1C232A; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; border: 1.5px solid var(--muted); }
+  .dot.done { background: var(--pos); border-color: var(--pos); }
+  .item .n { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .item .n.puan { padding: 0 4px; border-radius: 3px;
+                  background: linear-gradient(90deg, var(--accent-soft) calc(var(--p) * 100%), transparent 0); }
+  .item.cur .n.puan { background: none; }
+  .item.cur .n { color: #1C232A; }
+
+  #stage { position: relative; background: var(--stage); overflow: hidden; }
+  /* v3.6: üç katman. Alt: resim (yalnızca yakınlaştırma/kaydırmada yeniden çizilir), orta: kutular ve fare olayları,
+     üst: kılavuz çizgileri ve büyüteç (fare her kıpırdadığında yalnızca bu katman çizilir). */
+  #cvImg, #cv, #cvUst { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #cv { cursor: crosshair; user-select: none; }
+  #cvUst { pointer-events: none; }
+  #banner, #toast, #empty { z-index: 2; }
+  #stage.panning #cv { cursor: grabbing; }
+  #toast {
+    position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%);
+    background: var(--panel); color: var(--text); border: 1px solid var(--line);
+    padding: 8px 14px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity .2s;
+    pointer-events: none; max-width: 80%;
+  }
+  #toast.show { opacity: 1; }
+  #empty[hidden] { display: none; }
+  #empty { position: absolute; inset: 0; display: grid; place-items: center; color: #9AA5AF; text-align: center; padding: 24px; }
+
+  aside { overflow: auto; background: var(--panel); border-left: 1px solid var(--line); padding: 14px; }
+  aside h2 { font-size: 13px; font-weight: 650; margin: 0 0 8px; color: var(--muted); }
+  aside section + section { margin-top: 20px; }
+  .cls {
+    display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+    padding: 6px 8px; border: 1px solid transparent; border-radius: 6px; background: none; cursor: pointer;
+  }
+  .cls:hover { border-color: var(--line); }
+  .cls.on { border-color: var(--accent); background: var(--accent-soft); }
+  .sw { width: 14px; height: 14px; border-radius: 3px; flex: none; }
+  .key { margin-left: auto; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .box {
+    display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 6px; cursor: pointer; font-size: 13px;
+  }
+  .box:hover { background: var(--accent-soft); }
+  .box.on { outline: 1.5px solid var(--accent); }
+  .box .del { margin-left: auto; border: 0; background: none; cursor: pointer; color: var(--muted); font-size: 15px; padding: 0 4px; }
+  .box .del:hover { color: var(--neg); }
+  .none { color: var(--muted); font-size: 13px; }
+  dl { display: grid; grid-template-columns: minmax(0, 42%) 1fr; gap: 4px 10px; margin: 0; font-size: 12.5px; }
+  dt { font-weight: 600; }
+  dd { margin: 0; color: var(--muted); }
+  /* ---- sürüm 3 ekleri ---- */
+  .kucuk { font-size: 12px; color: var(--muted); }
+  .kisaca { font-size: 13px; display: grid; gap: 6px; }
+  .kisaca p { margin: 0; }
+  .kisaca .yap { border-left: 3px solid var(--accent); padding-left: 8px; }
+  a.btn { display: inline-block; text-decoration: none; color: var(--text); }
+  .solust { padding: 10px 10px 8px; border-bottom: 1px solid var(--line); display: grid; gap: 6px; }
+  select, input[type=number], input[type=text] {
+    font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line);
+    border-radius: 6px; padding: 5px 7px; width: 100%;
+  }
+  .rozet { font-size: 10.5px; font-weight: 700; border-radius: 4px; padding: 0 4px; line-height: 16px; flex: none; }
+  .rozet.t { background: #4FA3E0; color: #0F1A24; }
+  .rozet.d { background: #E0587A; color: #24101A; }
+  .rozet.p { background: var(--line); color: var(--text); }
+  .rozet.m { background: #A67BE0; color: #1A1024; }
+  .simgeler { padding: 8px 10px; border-top: 1px solid var(--line); line-height: 1.7; }
+  .simgeler .rozet { display: inline-block; margin-right: 3px; }
+  .soru { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%;
+          border: 1px solid var(--muted); color: var(--muted); font-size: 10.5px; font-weight: 700; margin-left: 6px; cursor: help; vertical-align: 1px; }
+  .soru:hover, .soru:focus { color: var(--accent); border-color: var(--accent); outline: none; }
+  #ipucu { position: fixed; z-index: 20; max-width: 340px; padding: 10px 12px; border-radius: 8px; background: var(--panel);
+           border: 1px solid var(--accent); box-shadow: 0 6px 24px rgba(0,0,0,.35); font-size: 12.5px; line-height: 1.5; pointer-events: none; }
+  .dlgUst { display: flex; align-items: center; gap: 8px; }
+  .dlgUst .spacer { flex: 1; }
+  details.gelismis { margin-top: 14px; }
+  details.gelismis > summary { cursor: pointer; font-weight: 650; font-size: 13px; color: var(--muted); }
+  .komut { padding: 10px 18px 0; border-top: 1px solid var(--line); }
+  .komut textarea { width: 100%; min-height: 64px; margin-top: 6px; font: 12.5px/1.45 ui-monospace, Consolas, monospace;
+                    background: #0D1117; color: #9BE59B; border: 1px solid var(--line); border-radius: 6px; padding: 8px; resize: vertical; }
+  .komutAlt { display: flex; gap: 8px; align-items: flex-start; margin-top: 6px; }
+  #ayarCikti { flex: 1; margin: 0; font: 12px/1.45 ui-monospace, Consolas, monospace; white-space: pre-wrap; max-height: 90px; overflow: auto; }
+  table.sinif { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; font-variant-numeric: tabular-nums; }
+  table.sinif td, table.sinif th { padding: 2px 4px; text-align: right; border-bottom: 1px solid var(--line); }
+  table.sinif td:first-child, table.sinif th:first-child { text-align: left; }
+  .linkbtn { border: 0; background: none; color: var(--accent); cursor: pointer; padding: 0 0 0 6px; font: inherit; text-decoration: underline; }
+  .sayilar { display: grid; grid-template-columns: 1fr auto; gap: 3px 10px; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .sayilar b { text-align: right; }
+  .sayilar .alt { color: var(--muted); padding-left: 10px; }
+  #modelOzet {
+    border: 1px solid var(--line); background: transparent; border-radius: 999px; padding: 4px 12px;
+    cursor: pointer; font-size: 13px; white-space: nowrap; max-width: 26vw; overflow: hidden; text-overflow: ellipsis;
+  }
+  #modelOzet.calisiyor { border-color: var(--accent); color: var(--accent); }
+  #banner {
+    position: absolute; left: 12px; top: 12px; max-width: calc(100% - 24px); padding: 6px 10px; border-radius: 8px;
+    font-size: 13px; background: var(--panel); border: 1px solid var(--line); pointer-events: none;
+  }
+  #banner[hidden] { display: none; }
+  #banner.test { border-color: #4FA3E0; }
+  #banner.denetim { border-color: #E0587A; }
+  #banner.oneri { border-color: var(--accent); }
+  .tabs { display: flex; gap: 4px; margin: -4px 0 14px; border-bottom: 1px solid var(--line); }
+  .tabs button { border: 0; background: none; padding: 6px 10px 8px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .tabs button.on { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+  [hidden] { display: none !important; }
+  .bar { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; margin: 8px 0 4px; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .4s; }
+  .btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .btn { border: 1px solid var(--line); background: var(--bg); border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+  .btn:hover:not(:disabled) { border-color: var(--accent); }
+  .btn.ana { background: var(--accent); border-color: var(--accent); color: #1C232A; font-weight: 600; }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .uyari { margin-top: 10px; padding: 8px 10px; border-radius: 6px; font-size: 12.5px; border: 1px solid var(--line); }
+  .uyari.kirmizi { border-color: var(--neg); }
+  .uyari.sari { border-color: var(--accent); }
+  .uyari.yesil { border-color: var(--pos); }
+  .uyari pre { white-space: pre-wrap; font-size: 11px; max-height: 180px; overflow: auto; margin: 6px 0 0; }
+  .uyari .btn { margin-top: 6px; }
+  ol.adim { margin: 0; padding-left: 20px; font-size: 13px; display: grid; gap: 4px; }
+  ol.adim li.ok { color: var(--pos); }
+  ol.adim li.simdi { font-weight: 600; }
+  table.turlar { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+  table.turlar th, table.turlar td { text-align: right; padding: 3px 4px; border-bottom: 1px solid var(--line); }
+  table.turlar th:first-child, table.turlar td:first-child { text-align: left; }
+  table.turlar td.hata { color: var(--neg); }
+  svg.egri { width: 100%; height: auto; display: block; }
+  svg.egri text { font-size: 10px; fill: var(--muted); }
+  a { color: var(--accent); }
+  dialog {
+    border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--text);
+    width: min(620px, calc(100vw - 32px)); max-height: calc(100vh - 48px); padding: 0;
+  }
+  dialog::backdrop { background: rgba(0,0,0,.45); }
+  dialog form { display: flex; flex-direction: column; max-height: calc(100vh - 50px); }
+  .dlgUst { padding: 14px 18px; border-bottom: 1px solid var(--line); font-weight: 650; }
+  .dlgGovde { padding: 6px 18px 12px; overflow: auto; }
+  .dlgAlt { padding: 12px 18px; border-top: 1px solid var(--line); display: flex; gap: 8px; align-items: center; }
+  .dlgAlt .hata { color: var(--neg); font-size: 12.5px; flex: 1; }
+  fieldset { border: 0; padding: 0; margin: 14px 0 0; }
+  legend { font-weight: 650; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  .alan { display: grid; grid-template-columns: 1fr 150px; gap: 2px 14px; align-items: center; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+  .alan label { font-size: 13px; font-weight: 600; }
+  .alan .yard { grid-column: 1 / -1; font-size: 12px; color: var(--muted); }
+  .alan input[type=checkbox] { justify-self: start; width: 18px; height: 18px; accent-color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Etiketleyici <small style="font-weight:400;color:var(--muted)">v3.6</small></h1>
+  <span id="fname"></span>
+  <span id="progress"></span>
+  <span class="spacer"></span>
+  <button id="modelOzet" title="Model sekmesini aç">Model yok</button>
+  <div class="modes" role="group" aria-label="Fare modu">
+    <button id="mEdit" class="on" title="S">Düzenle</button>
+    <button id="mDraw" title="W">Sadece çiz</button>
+  </div>
+  <span id="saveState">Kaydedildi</span>
+</header>
+
+<nav id="sol" aria-label="Görüntüler">
+  <div class="solust">
+    <select id="gorunum" aria-label="Liste görünümü">
+      <option value="kuyruk">Öneri sırası (etiketlenecekler)</option>
+      <option value="tum">Tüm kareler (zaman sırası)</option>
+      <option value="etiketli">Etiketliler (senin)</option>
+      <option value="model">Kontrol bekleyenler (M)</option>
+      <option value="etiketsiz">Etiketsizler</option>
+      <option value="test">Test seti</option>
+    </select>
+    <div id="gorunumBilgi" class="kucuk"></div>
+  </div>
+  <div id="list"></div>
+  <div class="simgeler kucuk" id="simgeler">
+    <span title="Senin etiketlediğin ya da onayladığın kare">● senin etiketin</span> ·
+    <span title="Henüz etiketi yok">○ etiketsiz</span><br>
+    <span class="rozet m">M</span> model etiketledi, kontrol bekliyor: aç, düzelt, D ile onayla<br>
+    <span class="rozet t">T</span> test karesi (sadece ölçüm) ·
+    <span class="rozet d">D</span> denetim (öneri gizli) ·
+    <span class="rozet p">–</span> tampon (kullanılmaz)
+  </div>
+</nav>
+
+<main id="stage">
+  <canvas id="cvImg" aria-hidden="true"></canvas>
+  <canvas id="cv"></canvas>
+  <canvas id="cvUst" aria-hidden="true"></canvas>
+  <div id="banner" hidden></div>
+  <div id="empty" hidden>Klasörde görüntü bulunamadı. Sunucuyu doğru --images klasörüyle başlattığından emin ol.</div>
+  <div id="toast" role="status"></div>
+</main>
+
+<aside>
+  <div class="tabs" role="tablist">
+    <button data-tab="etiket" class="on" role="tab">Etiket</button>
+    <button data-tab="model" role="tab">Model ve eğitim</button>
+  </div>
+
+  <div id="tab-etiket">
+    <section>
+      <h2>Sınıf</h2>
+      <div id="classes"></div>
+    </section>
+    <section>
+      <h2>Bu görüntüdeki kutular</h2>
+      <div id="boxes"></div>
+    </section>
+    <section>
+      <h2>Kısayollar</h2>
+      <dl>
+        <dt>Boşta sürükle</dt><dd>Yeni kutu çiz</dd>
+        <dt>Boşta tık</dt><dd>Modelin o noktadaki aday kutusunu ekle (tıkla-seç)</dd>
+        <dt>Kutuya tık</dt><dd>Kutuyu seç</dd>
+        <dt>Kutu içi sürükle</dt><dd>Kutuyu taşı</dd>
+        <dt>Tutamak sürükle</dt><dd>Köşe/kenardan boyutlandır (önce kutuyu seç)</dd>
+        <dt>Shift + sürükle</dt><dd>Başka kutunun üstünde de yeni kutu çiz</dd>
+        <dt>Alt + tık</dt><dd>Kutuyu seç</dd>
+        <dt>C</dt><dd>Model adaylarını göster / gizle</dd>
+        <dt>X</dt><dd>Kılavuz çizgilerini aç / kapat (LabelImg gibi)</dd>
+        <dt>Q / E</dt><dd>Önceki / sonraki sınıf (seçili kutunun sınıfını da değiştirir)</dd>
+        <dt>Esc</dt><dd>Seçimi kaldır / sürüklemeyi iptal et</dd>
+        <dt>Delete</dt><dd>Seçili kutuyu sil</dd>
+        <dt>1 – 9</dt><dd>Sınıf seç (seçili kutunun sınıfını da değiştirir)</dd>
+        <dt>D</dt><dd>Kaydet + sonraki (model önerisini onaylar). → da olur, kutu seçili değilken</dd>
+        <dt>A</dt><dd>Önceki görüntü. ← da olur, kutu seçili değilken</dd>
+        <dt>Ok tuşları</dt><dd>Seçili kutuyu 1 piksel kaydır (Shift ile 10 piksel)</dd>
+        <dt>Alt + ok</dt><dd>Seçili kutunun sağ / alt kenarını büyüt ya da küçült (Shift ile 10 piksel)</dd>
+        <dt>Tab</dt><dd>Kutular arasında sırayla gez (Shift + Tab geri). İmleç üst üste binmiş kutuların üstündeyse yalnızca onlar arasında gezer</dd>
+        <dt>B</dt><dd>Büyüteci aç / kapat: köşe tutarken ve çizerken imlecin yanında büyütülmüş görüntü çıkar</dd>
+        <dt>Ctrl + S</dt><dd>Kaydet (boş görüntüyü “nesne yok” diye işaretler)</dd>
+        <dt>Ctrl + Z</dt><dd>Geri al</dd>
+        <dt>Tekerlek</dt><dd>Yakınlaştır</dd>
+        <dt>Boşluk + sürükle</dt><dd>Görüntüyü kaydır (orta tuş da olur)</dd>
+        <dt>F</dt><dd>Ekrana sığdır</dd>
+        <dt>W</dt><dd>Tek kutu çiz (LabelImg gibi; kutu bitince düzenleme moduna kendiliğinden döner)</dd>
+        <dt>S</dt><dd>Düzenle modu</dd>
+      </dl>
+    </section>
+  </div>
+
+  <div id="tab-model" hidden>
+    <section>
+      <h2>Kısaca</h2>
+      <div id="mdKisaca" class="kisaca">Yükleniyor…</div>
+      <div class="btns"><a class="btn" href="/kilavuz" target="_blank" rel="noopener">Kılavuz: sonuçlar nasıl okunur</a></div>
+    </section>
+    <section>
+      <h2>Durum</h2>
+      <div id="mdDurum">Yükleniyor…</div>
+      <div class="bar" id="mdBarKutu" hidden><i id="mdBar"></i></div>
+      <div id="mdIs" class="kucuk"></div>
+      <div class="btns">
+        <button class="btn ana" id="bEgit">Şimdi eğit</button>
+        <button class="btn" id="bIptal" disabled>İptal</button>
+        <button class="btn" id="bAyar">Ayarlar</button>
+      </div>
+      <div id="mdUyari"></div>
+    </section>
+    <section>
+      <h2>Sayılar</h2>
+      <div class="sayilar" id="mdSayi"></div>
+    </section>
+    <section>
+      <h2>İnsan emeği</h2>
+      <div id="mdEmek" class="kucuk"></div>
+    </section>
+    <section>
+      <h2>Adımlar</h2>
+      <ol class="adim" id="mdAdim"></ol>
+    </section>
+    <section>
+      <h2>Öğrenme eğrisi (test seti)</h2>
+      <div id="mdEgri"></div>
+      <div class="kucuk" style="margin-top:6px"><a href="/api/egri.csv" download>CSV olarak indir</a> (Excel’de açılır)</div>
+    </section>
+    <section>
+      <h2>Turlar</h2>
+      <div id="mdTurlar"></div>
+    </section>
+  </div>
+</aside>
+
+<dialog id="dlg">
+  <form id="ayarForm" method="dialog" novalidate>
+    <div class="dlgUst">Ayarlar <span class="spacer"></span>
+      <button type="button" class="btn" id="ayarKopyala" title="Tüm ayarları okunur biçimde panoya kopyalar; bana yapıştırabilirsin">Ayarları kopyala</button></div>
+    <div class="dlgGovde" id="ayarGovde"></div>
+    <div class="komut">
+      <div class="kucuk"><b>Ayar komutu:</b> sana verdiğim ayar satırlarını buraya yapıştırıp “Uygula”ya bas. Örnek: <code>conf_on_etiket = 0.45</code></div>
+      <textarea id="ayarKomut" spellcheck="false" placeholder="conf_on_etiket = 0.45&#10;tur_epoch = 30"></textarea>
+      <div class="komutAlt"><button type="button" class="btn" id="ayarUygula">Uygula</button><pre id="ayarCikti"></pre></div>
+    </div>
+    <div class="dlgAlt">
+      <span class="hata" id="ayarHata"></span>
+      <button type="button" class="btn" id="ayarVazgec">Vazgeç</button>
+      <button type="submit" class="btn ana" id="ayarKaydet">Kaydet</button>
+    </div>
+  </form>
+  <div id="ipucu" hidden></div>
+</dialog>
+
+<dialog id="dlgTest">
+  <form id="testForm" method="dialog" novalidate>
+    <div class="dlgUst">Test seti kaç kare olsun?</div>
+    <div class="dlgGovde">
+      <p class="kucuk" style="margin:8px 0 4px">Test seti, modelin başarısını ölçmek için ayrılan karelerdir: eğitime hiç girmez.
+        Onaylayınca sabitlenir; her tur aynı karelerle ölçülür ki öğrenme eğrisi karşılaştırılabilsin.</p>
+      <div class="alan"><label for="tKaynak">Nereden seçilsin?</label>
+        <select id="tKaynak"><option value="etiketli">Etiketli karelerimden</option><option value="tum">Tüm karelerden</option></select>
+        <div class="yard" id="tKaynakYard"></div></div>
+      <div class="alan"><label for="tYerlesim">Hangi kısımdan?</label>
+        <select id="tYerlesim"><option value="son">Sondan</option><option value="bas">Baştan</option><option value="bloklu">Karışık (4 farklı yerden blok)</option></select>
+        <div class="yard" id="tYerlesimYard"></div></div>
+      <div class="alan"><label for="tSayi">Kaç kare?</label><input type="number" id="tSayi" min="0" step="1">
+        <div class="yard" id="tYard"></div></div>
+      <div class="alan"><label for="tTampon">Tampon (kare)</label><input type="number" id="tTampon" min="0" step="1">
+        <div class="yard">Her test karesinin önündeki ve arkasındaki bu kadar kare hiç kullanılmaz; art arda kareler neredeyse aynı olduğu için test karelerinin “kopyası” eğitime girmesin. Öneri: 10.</div></div>
+      <div class="alan" id="tSifirlaSatir" hidden><label for="tSifirla">Öğrenme eğrisini sıfırla</label><input type="checkbox" id="tSifirla">
+        <div class="yard">Test seti şu an kilitli. Değiştirirsen önceki turların test sonuçları yeni setle karşılaştırılamaz; öğrenme eğrisi yeniden başlar.</div></div>
+    </div>
+    <div class="dlgAlt">
+      <span class="hata" id="tHata"></span>
+      <button type="button" class="btn" id="tVazgec">Sonra</button>
+      <button type="submit" class="btn ana">Onayla</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+const COLORS = ['#E9AE3A', '#4FA3E0', '#E0587A', '#5CC28A', '#A67BE0', '#E07B39', '#3EC1C0', '#C7CF48', '#E06BC8', '#8FA1AE'];
+const $ = s => document.querySelector(s);
+const cv = $('#cv'), ctx = cv.getContext('2d');
+const cvImg = $('#cvImg'), ctxImg = cvImg.getContext('2d'), cvUst = $('#cvUst'), ctxUst = cvUst.getContext('2d');
+const HR = 7;          // tutamak yakalama yarıçapı (ekran pikseli)
+const DRAG_MIN = 3;    // bu kadar ekran pikselinden az hareket = tıklama sayılır
+
+const S = {
+  images: [], idx: -1, classes: [], boxes: [], cls: 0, sel: -1,
+  dirty: false, pre: false, mode: 'edit', img: null, view: { s: 1, x: 0, y: 0 },
+  op: null, pan: null, space: false, undo: [], loadToken: 0,
+  liste: 'kuyruk', order: [], kuyruk: null, adaylar: [], showCand: false, arti: true, fare: null, tekCizim: false, emek: null,
+  rol: 'havuz', denetim: false, tahminTurGoruntu: null, durum: null, tahminTur: undefined,
+  buyutec: true, gorselAnahtar: null, okGrup: null,
+};
+const byName = new Map();
+/* S.op = süren fare işlemi: draw | move | resize.  Kutuda m alanı varsa kutu modelden gelmiştir (m = güven). */
+
+/* ---------------- yardımcılar ---------------- */
+const color = c => COLORS[c % COLORS.length];
+function toast(msg, ms = 2400) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('show'), ms);
+}
+function setDirty(v) {
+  S.dirty = v;
+  const el = $('#saveState');
+  el.textContent = v ? 'Kaydedilmedi' : (S.pre ? 'Öneri (kaydedilmedi)' : 'Kaydedildi');
+  el.classList.toggle('dirty', v || S.pre);
+}
+const snapshot = () => JSON.stringify(S.boxes);
+function pushUndo(snap = snapshot()) { S.undo.push(snap); if (S.undo.length > 100) S.undo.shift(); }
+function toImg(e) {
+  const r = cv.getBoundingClientRect();
+  return [(e.clientX - r.left - S.view.x) / S.view.s, (e.clientY - r.top - S.view.y) / S.view.s];
+}
+function toScrPt(e) { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+const toScr = (x, y) => [x * S.view.s + S.view.x, y * S.view.s + S.view.y];
+const W = () => S.img.naturalWidth, H = () => S.img.naturalHeight;
+const clamp = (v, a, b) => Math.min(Math.max(v, a), b);
+const fmt = (v, n = 2) => (v === null || v === undefined) ? '–' : Number(v).toFixed(n).replace('.', ',');
+function sure(sn) { sn = Math.round(sn || 0); const d = Math.floor(sn / 60), s = sn % 60; return d >= 60 ? `${Math.floor(d / 60)} sa ${d % 60} dk` : `${d}:${String(s).padStart(2, '0')}`; }
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function clampToImg([x, y]) { return [clamp(x, 0, W()), clamp(y, 0, H())]; }
+function insideBox(b, [x, y]) { return x >= b.x1 && x <= b.x2 && y >= b.y1 && y <= b.y2; }
+function iou(a, b) {
+  const w = Math.min(a.x2, b.x2) - Math.max(a.x1, b.x1), h = Math.min(a.y2, b.y2) - Math.max(a.y1, b.y1);
+  if (w <= 0 || h <= 0) return 0;
+  const k = w * h;
+  return k / ((a.x2 - a.x1) * (a.y2 - a.y1) + (b.x2 - b.x1) * (b.y2 - b.y1) - k);
+}
+function hitBox(p) {
+  // En küçük kutuyu tercih et (iç içe / çakışan kutularda içtekini seçebilmek için)
+  let best = -1, area = Infinity;
+  S.boxes.forEach((b, i) => {
+    if (insideBox(b, p)) {
+      const a = (b.x2 - b.x1) * (b.y2 - b.y1);
+      if (a < area) { area = a; best = i; }
+    }
+  });
+  return best;
+}
+function adayBul(p) {
+  // Tıklanan noktayı içeren, mevcut kutularla çakışmayan en yüksek skorlu model adayı
+  let best = null;
+  for (const a of S.adaylar) {
+    if (!insideBox(a, p) || a.cls >= S.classes.length) continue;
+    if (S.boxes.some(b => iou(a, b) >= 0.5)) continue;
+    if (!best || a.s > best.s) best = a;
+  }
+  return best;
+}
+
+/* Tutamaklar: 4 köşe + 4 kenar ortası. Ekran koordinatında döner. */
+function handles(b) {
+  const [x1, y1] = toScr(b.x1, b.y1), [x2, y2] = toScr(b.x2, b.y2);
+  const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+  const hs = [['nw', x1, y1], ['ne', x2, y1], ['sw', x1, y2], ['se', x2, y2]];
+  if (x2 - x1 > 4 * HR) hs.push(['n', mx, y1], ['s', mx, y2]);
+  if (y2 - y1 > 4 * HR) hs.push(['w', x1, my], ['e', x2, my]);
+  return hs;
+}
+function hitHandle(i, sp) {
+  if (i < 0 || !S.boxes[i]) return null;
+  const b = S.boxes[i];
+  const [x1, y1] = toScr(b.x1, b.y1), [x2, y2] = toScr(b.x2, b.y2);
+  const small = (x2 - x1) < 3 * HR || (y2 - y1) < 3 * HR;
+  const inner = sp[0] > x1 && sp[0] < x2 && sp[1] > y1 && sp[1] < y2;
+  if (small && inner) return null;   // ekranda küçük kutunun içi taşıma içindir
+  let best = null, bd = HR + 1;
+  for (const [h, hx, hy] of handles(b)) {
+    const d = Math.max(Math.abs(sp[0] - hx), Math.abs(sp[1] - hy));
+    if (d < bd) { bd = d; best = h; }
+  }
+  return best;
+}
+const CURSOR = { nw: 'nwse-resize', se: 'nwse-resize', ne: 'nesw-resize', sw: 'nesw-resize',
+                 n: 'ns-resize', s: 'ns-resize', e: 'ew-resize', w: 'ew-resize' };
+
+/* ---------------- veri ---------------- */
+async function api(url, body) {
+  const opt = body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
+  const r = await fetch(url, opt);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || `Sunucu hatası (${r.status})`);
+  return j;
+}
+
+async function bilgiYukle() {
+  const info = await api('/api/info');
+  S.classes = info.classes; S.images = info.images;
+  byName.clear(); S.images.forEach((im, i) => byName.set(im.name, i));
+  kisaAdlar(); renderClasses();
+}
+function kisaAdlar() {
+  // Tüm adlarda ortak olan öneki (örn. "Ornek-Veri-1-RGB_") listede gizle; kare numarası görünsün.
+  let p = S.images.length > 1 ? S.images[0].name : '';
+  for (const im of S.images) {
+    let k = 0;
+    while (k < p.length && k < im.name.length && p[k] === im.name[k]) k++;
+    p = p.slice(0, k);
+    if (!p) break;
+  }
+  const kes = p ? p.replace(/[-_ .]+$/, '').search(/[^-_ .]*$/) : 0;
+  S.images.forEach(im => { im.kisa = kes > 3 ? '…' + im.name.slice(kes) : im.name; });
+}
+
+async function init() {
+  await bilgiYukle();
+  try {
+    S.liste = localStorage.getItem('etiketleyici_liste') || 'kuyruk';
+    S.arti = localStorage.getItem('etiketleyici_arti') !== '0';
+    S.buyutec = localStorage.getItem('etiketleyici_buyutec') !== '0';
+  } catch (e) { /* yok say */ }
+  $('#gorunum').value = S.liste;
+  setMode('edit');
+  if (!S.images.length) { $('#empty').hidden = false; setTimeout(durumDongu, 2000); return; }
+  await durumAl();
+  await kuyrukYukle(false);
+  listeKur();
+  const ilk = S.order.find(i => !S.images[i].labeled) ?? S.images.findIndex(im => !im.labeled);
+  await load(ilk >= 0 ? ilk : 0);
+  setTimeout(durumDongu, 2000);
+}
+
+async function save() {
+  if (S.idx < 0) return;
+  const w = W(), h = H();
+  const boxes = S.boxes.map(b => ({
+    cls: b.cls, cx: (b.x1 + b.x2) / 2 / w, cy: (b.y1 + b.y2) / 2 / h, w: (b.x2 - b.x1) / w, h: (b.y2 - b.y1) / h,
+  }));
+  const name = S.images[S.idx].name;
+  emekTik();
+  const em = S.emek;
+  const emek = em ? { sure_sn: Math.round(em.sure / 100) / 10, eklenen: em.eklenen, silinen: em.silinen, duzeltilen: em.duzeltilen,
+                      sinif_degisen: em.sinif, kaynak: em.kaynak, ilk_kutu: em.ilk } : undefined;
+  await api('/api/labels/' + encodeURIComponent(name), { boxes, emek });
+  if (em) Object.assign(em, { sure: 0, eklenen: 0, silinen: 0, duzeltilen: 0, sinif: 0, ilk: boxes.length, kaynak: 'duzenleme' });
+  Object.assign(S.images[S.idx], { labeled: true, count: boxes.length, model: false });
+  S.boxes.forEach(b => { delete b.m; });
+  S.pre = false;
+  setDirty(false); renderList(false); renderBoxes(); bannerGuncelle(); draw();
+}
+
+async function load(i, onay = false) {
+  if (i === null || i === undefined || i < 0 || i >= S.images.length) return;
+  if (S.op) cancelOp();
+  if (S.idx >= 0 && (S.dirty || (onay && S.pre))) {
+    try { await save(); } catch (e) { toast('Kaydedilemedi: ' + e.message); return; }
+  }
+  const token = ++S.loadToken;
+  const name = S.images[i].name;
+  const img = new Image();
+  img.src = '/api/image/' + encodeURIComponent(name);
+  let lab;
+  try {
+    [lab] = await Promise.all([api('/api/labels/' + encodeURIComponent(name)), img.decode()]);
+  } catch (e) { if (token === S.loadToken) toast('Görüntü açılamadı: ' + e.message); return; }
+  if (token !== S.loadToken) return; // bu arada başka görüntüye geçildi
+
+  S.idx = i; S.img = img; S.sel = -1; S.undo = []; S.op = null;
+  const w = img.naturalWidth, h = img.naturalHeight;
+  S.rol = lab.rol; S.denetim = lab.denetim; S.tahminTurGoruntu = lab.tahmin_tur;
+  if (lab.labeled) {
+    S.boxes = lab.boxes.map(b => ({
+      cls: b.cls, x1: (b.cx - b.w / 2) * w, y1: (b.cy - b.h / 2) * h, x2: (b.cx + b.w / 2) * w, y2: (b.cy + b.h / 2) * h,
+    }));
+    S.pre = !!lab.model;   // model etiketlediyse D ile onaylanana kadar "öneri" sayılır
+  } else if (lab.tahmin_var) {
+    S.boxes = lab.oneri.map(k => ({ cls: k[4], x1: k[0], y1: k[1], x2: k[2], y2: k[3], m: k[5] }));
+    S.pre = true;
+  } else {
+    S.boxes = []; S.pre = false;
+  }
+  S.adaylar = lab.aday.map(k => ({ x1: k[0], y1: k[1], x2: k[2], y2: k[3], cls: k[4], s: k[5] }));
+  S.emek = { son: performance.now(), sure: 0, eklenen: 0, silinen: 0, duzeltilen: 0, sinif: 0, ilk: S.boxes.length,
+             kaynak: lab.model ? 'model' : lab.labeled ? 'duzenleme' : (S.pre ? 'oneri' : 'elle') };
+  S.images[i].labeled = lab.labeled; S.images[i].model = !!lab.model;
+  setDirty(false);
+  $('#fname').textContent = `${name}  (${w}×${h})`;
+  fit(); renderList(true); renderBoxes(); bannerGuncelle();
+  // Sıradaki görüntüyü önceden indir (4K'da geçişi hızlandırır)
+  const nx = siradaki(+1);
+  if (nx !== null) { const pre = new Image(); pre.src = '/api/image/' + encodeURIComponent(S.images[nx].name); }
+}
+
+/* ---------------- liste ve sıra ---------------- */
+async function kuyrukYukle(yenidenCiz = true) {
+  try { S.kuyruk = await api('/api/kuyruk'); } catch (e) { return; }
+  if (yenidenCiz && S.liste === 'kuyruk') listeKur();
+}
+function listeKur() {
+  const filtre = { etiketli: im => im.labeled && !im.model, model: im => im.labeled && im.model, etiketsiz: im => !im.labeled }[S.liste];
+  if (filtre) S.order = S.images.map((im, i) => filtre(im) ? i : -1).filter(i => i >= 0);
+  else if (S.liste === 'tum') S.order = S.images.map((_, i) => i);
+  else if (S.liste === 'test') S.order = S.images.map((im, i) => im.rol === 'test' ? i : -1).filter(i => i >= 0);
+  else S.order = (S.kuyruk?.adlar || []).map(n => byName.get(n)).filter(i => i !== undefined);
+  renderList(true);
+}
+function siradaki(yon) {
+  const ord = S.order;
+  if (!ord.length) return null;
+  const pos = ord.indexOf(S.idx);
+  if (yon > 0) {
+    for (let p = pos + 1; p < ord.length; p++) {
+      const im = S.images[ord[p]];
+      if (S.liste !== 'kuyruk' || !im.labeled || im.model) return ord[p];
+    }
+    return null;
+  }
+  if (pos === -1) return null;
+  return pos > 0 ? ord[pos - 1] : null;
+}
+async function git(yon) {
+  const j = siradaki(yon);
+  if (j === null) {
+    if (yon > 0 && S.idx >= 0 && (S.dirty || S.pre)) {
+      try { await save(); } catch (e) { toast('Kaydedilemedi: ' + e.message); return; }
+    }
+    if (yon < 0) toast('Listenin başındasın.');
+    else toast(S.liste === 'kuyruk' ? 'Bu listede etiketlenecek kare kalmadı.' : 'Listenin sonundasın, kaydedildi.');
+    return;
+  }
+  await load(j, yon > 0);
+}
+
+/* ---------------- görünüm ---------------- */
+function resize() {
+  const dpr = window.devicePixelRatio || 1, r = cv.getBoundingClientRect();
+  for (const c of [cvImg, cv, cvUst]) { c.width = Math.round(r.width * dpr); c.height = Math.round(r.height * dpr); }
+  S.gorselAnahtar = null;
+  draw();
+}
+function fit() {
+  if (!S.img) return;
+  const r = cv.getBoundingClientRect(), w = W(), h = H();
+  const s = Math.min(r.width / w, r.height / h) * 0.97;
+  S.view = { s, x: (r.width - w * s) / 2, y: (r.height - h * s) / 2 };
+  draw();
+}
+
+/* v3.6: 4K resim yalnızca görünüm (yakınlaştırma, kaydırma, pencere boyu) ya da resim değişince yeniden çizilir.
+   v3.5'te fare her kıpırdadığında baştan çiziliyordu; donmanın sebeplerinden biri buydu. */
+function gorselCiz() {
+  const dpr = window.devicePixelRatio || 1, v = S.view;
+  const anahtar = S.img ? `${S.img.src}|${v.s}|${v.x}|${v.y}|${cvImg.width}|${cvImg.height}` : '';
+  if (anahtar === S.gorselAnahtar) return;
+  S.gorselAnahtar = anahtar;
+  ctxImg.setTransform(1, 0, 0, 1, 0, 0);
+  ctxImg.clearRect(0, 0, cvImg.width, cvImg.height);
+  if (!S.img) return;
+  ctxImg.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctxImg.translate(v.x, v.y); ctxImg.scale(v.s, v.s);
+  ctxImg.imageSmoothingEnabled = v.s < 3;
+  ctxImg.drawImage(S.img, 0, 0);
+}
+function draw() { gorselCiz(); kutuCiz(); ustCiz(); }
+
+function kutuCiz() {
+  const dpr = window.devicePixelRatio || 1;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  if (!S.img) return;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  // Model adayları (C ile açılır)
+  if (S.showCand) {
+    ctx.setLineDash([2, 3]); ctx.lineWidth = 1.2;
+    for (const a of S.adaylar) {
+      if (a.cls >= S.classes.length || S.boxes.some(b => iou(a, b) >= 0.5)) continue;
+      const [x1, y1] = toScr(a.x1, a.y1), [x2, y2] = toScr(a.x2, a.y2);
+      ctx.globalAlpha = 0.35 + 0.65 * Math.min(1, a.s / 0.5);
+      ctx.strokeStyle = color(a.cls); ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+    }
+    ctx.globalAlpha = 1; ctx.setLineDash([]);
+  }
+
+  // Kutular (modelden gelen ve henüz onaylanmamış olanlar kesikli çizilir)
+  ctx.font = '600 12px system-ui, sans-serif'; ctx.textBaseline = 'middle';
+  S.boxes.forEach((b, i) => {
+    const c = color(b.cls);
+    const [x1, y1] = toScr(b.x1, b.y1), [x2, y2] = toScr(b.x2, b.y2);
+    if (i === S.sel) { ctx.fillStyle = c + '30'; ctx.fillRect(x1, y1, x2 - x1, y2 - y1); }
+    ctx.strokeStyle = c; ctx.lineWidth = i === S.sel ? 2.5 : 1.6;
+    if (b.m !== undefined) ctx.setLineDash([5, 3]);
+    ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+    ctx.setLineDash([]);
+    let label = S.classes[b.cls] ?? `sınıf ${b.cls}`;
+    if (b.m !== undefined) label += ' ' + b.m.toFixed(2).slice(1);
+    const tw = ctx.measureText(label).width + 10, ty = y1 >= 18 ? y1 - 18 : y1;
+    ctx.fillStyle = c; ctx.fillRect(x1, ty, tw, 18);
+    ctx.fillStyle = '#14181C'; ctx.fillText(label, x1 + 5, ty + 9.5);
+  });
+
+  // Seçili kutunun tutamakları
+  if (S.sel >= 0 && S.boxes[S.sel] && S.mode === 'edit') {
+    const c = color(S.boxes[S.sel].cls), hs = 4.5;
+    for (const [, hx, hy] of handles(S.boxes[S.sel])) {
+      ctx.fillStyle = '#fff'; ctx.fillRect(hx - hs, hy - hs, hs * 2, hs * 2);
+      ctx.strokeStyle = c; ctx.lineWidth = 1.5; ctx.strokeRect(hx - hs, hy - hs, hs * 2, hs * 2);
+    }
+  }
+
+  // Çizilmekte olan kutu
+  if (S.op && S.op.type === 'draw') {
+    const d = S.op;
+    const [x1, y1] = toScr(d.x0, d.y0), [x2, y2] = toScr(d.x1, d.y1);
+    ctx.setLineDash([5, 4]); ctx.strokeStyle = color(S.cls); ctx.lineWidth = 2;
+    ctx.strokeRect(x1, y1, x2 - x1, y2 - y1); ctx.setLineDash([]);
+  }
+}
+
+/* Üst katman: kılavuz çizgileri (LabelImg gibi) ve büyüteç. Fare hareketinde yalnızca bu çizilir. */
+function ustCiz() {
+  const dpr = window.devicePixelRatio || 1;
+  ctxUst.setTransform(1, 0, 0, 1, 0, 0);
+  ctxUst.clearRect(0, 0, cvUst.width, cvUst.height);
+  if (!S.img || !S.fare) return;
+  ctxUst.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const [fx, fy] = S.fare;
+  if (S.arti && !S.pan) {
+    const [ix1, iy1] = toScr(0, 0), [ix2, iy2] = toScr(W(), H());
+    if (fx >= ix1 && fx <= ix2 && fy >= iy1 && fy <= iy2) {
+      for (const [renk, kal] of [['rgba(0,0,0,.55)', 3], ['rgba(255,255,255,.9)', 1]]) {
+        ctxUst.strokeStyle = renk; ctxUst.lineWidth = kal; ctxUst.beginPath();
+        ctxUst.moveTo(Math.round(fx) + .5, iy1); ctxUst.lineTo(Math.round(fx) + .5, iy2);
+        ctxUst.moveTo(ix1, Math.round(fy) + .5); ctxUst.lineTo(ix2, Math.round(fy) + .5);
+        ctxUst.stroke();
+      }
+    }
+  }
+  if (S.buyutec && S.op && (S.op.type === 'resize' || S.op.type === 'draw')) buyutecCiz(fx, fy);
+}
+
+/* Büyüteç: köşe tutarken ve yeni kutu çizerken imlecin çevresini büyütülmüş gösterir; kenarı piksel piksel
+   oturtmak için. Büyütme ekrandaki ölçeğin 4 katıdır (en az 1,5, en çok 16 ekran pikseli = 1 resim pikseli). */
+function buyutecCiz(fx, fy) {
+  const L = 176, kat = clamp(S.view.s * 4, 1.5, 16), c = ctxUst, r = cv.getBoundingClientRect();
+  let ox = fx + 26, oy = fy + 26;
+  if (ox + L > r.width - 4) ox = fx - 26 - L;
+  if (oy + L > r.height - 4) oy = fy - 26 - L;
+  ox = clamp(ox, 4, Math.max(4, r.width - L - 4)); oy = clamp(oy, 4, Math.max(4, r.height - L - 4));
+  const ix = (fx - S.view.x) / S.view.s, iy = (fy - S.view.y) / S.view.s, yar = L / 2 / kat;
+  const B = (x, y) => [ox + (x - ix + yar) * kat, oy + (y - iy + yar) * kat];
+  c.save();
+  c.beginPath(); c.rect(ox, oy, L, L); c.clip();
+  c.fillStyle = '#0D1013'; c.fillRect(ox, oy, L, L);
+  c.imageSmoothingEnabled = kat < 3;
+  c.drawImage(S.img, ix - yar, iy - yar, 2 * yar, 2 * yar, ox, oy, L, L);
+  const kutu = (x1, y1, x2, y2, renk, kal, kesik) => {
+    const [a, b] = B(x1, y1), [d, e] = B(x2, y2);
+    c.setLineDash(kesik ? [5, 3] : []); c.strokeStyle = renk; c.lineWidth = kal; c.strokeRect(a, b, d - a, e - b);
+  };
+  S.boxes.forEach((b, i) => kutu(b.x1, b.y1, b.x2, b.y2, color(b.cls), S.op.type === 'resize' && i === S.op.i ? 2 : 1, b.m !== undefined));
+  if (S.op.type === 'draw') kutu(Math.min(S.op.x0, S.op.x1), Math.min(S.op.y0, S.op.y1), Math.max(S.op.x0, S.op.x1), Math.max(S.op.y0, S.op.y1), color(S.cls), 2, true);
+  c.setLineDash([]);
+  const m = L / 2;
+  for (const [renk, kal] of [['rgba(0,0,0,.6)', 3], ['rgba(255,255,255,.95)', 1]]) {
+    c.strokeStyle = renk; c.lineWidth = kal; c.beginPath();
+    c.moveTo(ox + m - 12, oy + m + .5); c.lineTo(ox + m - 3, oy + m + .5); c.moveTo(ox + m + 3, oy + m + .5); c.lineTo(ox + m + 12, oy + m + .5);
+    c.moveTo(ox + m + .5, oy + m - 12); c.lineTo(ox + m + .5, oy + m - 3); c.moveTo(ox + m + .5, oy + m + 3); c.lineTo(ox + m + .5, oy + m + 12);
+    c.stroke();
+  }
+  c.font = '600 11px system-ui, sans-serif'; c.textBaseline = 'alphabetic';
+  const yazi = `${(kat / S.view.s).toFixed(0)}× · ${Math.round(ix)}, ${Math.round(iy)}`;
+  c.fillStyle = 'rgba(13,16,19,.75)'; c.fillRect(ox, oy + L - 18, c.measureText(yazi).width + 10, 18);
+  c.fillStyle = '#E3E7EB'; c.fillText(yazi, ox + 5, oy + L - 5);
+  c.restore();
+  c.strokeStyle = 'rgba(0,0,0,.6)'; c.lineWidth = 3; c.strokeRect(ox, oy, L, L);
+  c.strokeStyle = '#fff'; c.lineWidth = 1; c.strokeRect(ox, oy, L, L);
+}
+
+function bannerGuncelle() {
+  const el = $('#banner');
+  let cls = '', txt = '';
+  if (S.idx < 0) { el.hidden = true; return; }
+  if (S.rol === 'test') { cls = 'test'; txt = 'TEST karesi · eğitime girmez, sadece ölçüm için. Model yardımı kapalı, dikkatle elle etiketle.'; }
+  else if (S.rol === 'tampon') { cls = 'test'; txt = 'TAMPON karesi · test setine çok yakın olduğu için ne eğitimde ne testte kullanılır. Etiketlemen gerekmez.'; }
+  else if (S.denetim) { cls = 'denetim'; txt = 'DENETİM karesi · rastgele seçildi, model önerisi bilerek gizlendi. Kendin etiketle.'; }
+  else if (S.pre && S.images[S.idx]?.model) { cls = 'oneri'; txt = `MODEL ETİKETİ (kontrol edilmedi): ${S.boxes.length} kutu · eksikleri ekle, yanlışları sil, D ile onayla. Onaylanana kadar eğitimde kullanılmaz.`; }
+  else if (S.pre) { cls = 'oneri'; txt = `Model önerisi (tur ${S.tahminTurGoruntu}): ${S.boxes.length} kutu · eksikleri ekle, yanlışları sil, D ile onayla.`; }
+  el.hidden = !txt; el.className = cls; el.textContent = txt;
+}
+
+/* ---------------- paneller ---------------- */
+function renderClasses() {
+  const el = $('#classes'); el.innerHTML = '';
+  S.classes.forEach((name, i) => {
+    const b = document.createElement('button');
+    b.className = 'cls' + (i === S.cls ? ' on' : '');
+    b.innerHTML = `<span class="sw" style="background:${color(i)}"></span><span></span><span class="key">${i < 9 ? i + 1 : ''}</span>`;
+    b.children[1].textContent = name;
+    b.onclick = () => setClass(i);
+    el.appendChild(b);
+  });
+}
+function renderBoxes() {
+  const el = $('#boxes'); el.innerHTML = '';
+  if (!S.boxes.length) { el.innerHTML = '<div class="none">Henüz kutu yok.</div>'; return; }
+  S.boxes.forEach((b, i) => {
+    const row = document.createElement('div');
+    row.className = 'box' + (i === S.sel ? ' on' : '');
+    row.innerHTML = `<span class="sw" style="background:${color(b.cls)}"></span><span></span><button class="del" title="Sil" aria-label="Kutuyu sil">×</button>`;
+    row.children[1].textContent = `${S.classes[b.cls] ?? 'sınıf ' + b.cls}  ${Math.round(b.x2 - b.x1)}×${Math.round(b.y2 - b.y1)}`
+      + (b.m !== undefined ? `  · model ${b.m.toFixed(2)}` : '');
+    row.onclick = () => select(i);
+    row.querySelector('.del').onclick = ev => { ev.stopPropagation(); removeBox(i); };
+    el.appendChild(row);
+  });
+  el.children[S.sel]?.scrollIntoView({ block: 'nearest' });
+}
+function renderList(scroll) {
+  const el = $('#list'); el.innerHTML = '';
+  const mod = S.images.filter(i => i.labeled && i.model).length;
+  const done = S.images.filter(i => i.labeled && !i.model).length;
+  $('#progress').textContent = `${S.images.length} fotoğraf · ${done} etiketli · ${S.images.length - done - mod} etiketsiz`
+    + (mod ? ` · ${mod} model etiketi (kontrol bekliyor)` : '');
+  const den = new Set(S.kuyruk?.denetim || []), skor = S.kuyruk?.skor || {};
+  const frag = document.createDocumentFragment();
+  let curEl = null;
+  for (const i of S.order) {
+    const im = S.images[i];
+    const d = document.createElement('div');
+    d.className = 'item' + (i === S.idx ? ' cur' : ''); d.tabIndex = 0;
+    let rozet = '';
+    if (im.rol === 'test') rozet = '<span class="rozet t" title="Test seti">T</span>';
+    else if (im.rol === 'tampon') rozet = '<span class="rozet p" title="Tampon: kullanılmaz">–</span>';
+    else if (den.has(im.name)) rozet = '<span class="rozet d" title="Denetim karesi">D</span>';
+    if (im.labeled && im.model) rozet += '<span class="rozet m" title="Model etiketledi, henüz kontrol edilmedi">M</span>';
+    let sag = im.labeled ? im.count : '', puan = null;
+    if ((!im.labeled || im.model) && S.liste === 'kuyruk' && skor[im.name] !== undefined) { puan = skor[im.name]; sag = fmt(puan); }
+    d.innerHTML = `<span class="dot${im.labeled && !im.model ? ' done' : ''}"></span><span></span>${rozet}`
+      + (puan !== null ? `<span class="n puan" style="--p:${clamp(puan, 0, 1)}">${sag}</span>` : `<span class="n">${sag}</span>`);
+    d.children[1].textContent = im.kisa || im.name;
+    d.children[1].style.cssText = 'overflow:hidden;text-overflow:ellipsis';
+    const det = S.kuyruk?.detay?.[im.name], ag = S.kuyruk?.agirlik;
+    d.title = puan !== null && det && ag
+      ? `${im.name}\nÖncelik ${fmt(puan)} = ${fmt(ag.u, 1)} × kararsızlık ${fmt(det[0])} + ${fmt(ag.t, 1)} × titreme ${fmt(det[1])}\nModelin önerdiği kutu: ${det[2]}`
+      : im.name;
+    d.onclick = () => load(i);
+    frag.appendChild(d);
+    if (i === S.idx) curEl = d;
+  }
+  el.appendChild(frag);
+  if (!S.order.length) el.innerHTML = '<div class="none" style="padding:12px">Bu listede kare yok.</div>';
+  if (scroll && curEl) curEl.scrollIntoView({ block: 'nearest' });
+  gorunumBilgi();
+}
+function gorunumBilgi() {
+  const el = $('#gorunumBilgi');
+  const say = S.order.length, et = S.order.filter(i => S.images[i].labeled).length;
+  if (S.liste === 'tum') el.textContent = `${say} fotoğraf: ${et} etiketli, ${say - et} etiketsiz. T = test, – = tampon (kullanılmaz), M = model etiketi.`;
+  else if (S.liste === 'test') el.textContent = say ? `Test seti: ${et}/${say} etiketli. Eğitime girmez, sadece ölçüm için.` : 'Test seti yok.';
+  else if (S.liste === 'etiketli') el.textContent = `Senin etiketlediğin ya da onayladığın ${say} kare (zaman sırası).`;
+  else if (S.liste === 'model') el.textContent = say ? `${say} kare model tarafından etiketlendi ve kontrolünü bekliyor. Aç, düzelt, D ile onayla.` : 'Kontrol bekleyen kare yok.';
+  else if (S.liste === 'etiketsiz') el.textContent = `${say} karenin hiç etiketi yok.`;
+  else if (S.kuyruk?.tohum) el.textContent = `Tohum kareleri: ${et}/${say} etiketli. Eşit aralıklarla seçildi, elle etiketle.`;
+  else el.textContent = `Tur ${S.kuyruk?.tur} önerileri · ${S.durum?.ayarlar?.secim === 'rastgele' ? 'rastgele sıra' : 'en kararsız önce'} · ${say - et} etiketsiz. D = denetim. Sağdaki sayı öncelik puanı (0–1): yüksek = model o karede kararsız. Üstüne gelince hesabı görünür.`;
+}
+
+/* ---------------- işlemler ---------------- */
+function select(i) { S.sel = i; renderBoxes(); draw(); }
+function setClass(i) {
+  if (i < 0 || i >= S.classes.length) return;
+  S.cls = i;
+  if (S.sel >= 0 && S.boxes[S.sel] && (S.boxes[S.sel].cls !== i || S.boxes[S.sel].m !== undefined)) {
+    pushUndo(); S.boxes[S.sel].cls = i; delete S.boxes[S.sel].m; setDirty(true); renderBoxes();
+    if (S.emek) S.emek.sinif++;
+  }
+  renderClasses(); draw();
+}
+function removeBox(i) {
+  if (i < 0 || !S.boxes[i]) return;
+  pushUndo(); S.boxes.splice(i, 1); S.sel = -1;
+  if (S.emek) S.emek.silinen++;
+  setDirty(true); renderBoxes(); draw();
+}
+function setMode(m) {
+  if (S.op) cancelOp();
+  S.mode = m;
+  $('#mEdit').classList.toggle('on', m === 'edit');
+  $('#mDraw').classList.toggle('on', m === 'draw');
+  cv.style.cursor = 'crosshair';
+  draw();
+}
+function cancelOp() {
+  const op = S.op; S.op = null;
+  if (op && (op.type === 'move' || op.type === 'resize') && op.moved) S.boxes[op.i] = { ...op.orig };
+  renderBoxes(); draw();
+}
+
+/* ---------------- fare ---------------- */
+cv.addEventListener('contextmenu', e => e.preventDefault());
+cv.addEventListener('mouseleave', () => { if (!S.op) { S.fare = null; ustCiz(); } });
+function cizIste() { if (!S.cizBekliyor) { S.cizBekliyor = true; requestAnimationFrame(() => { S.cizBekliyor = false; draw(); }); } }
+function ustIste() { if (!S.ustBekliyor) { S.ustBekliyor = true; requestAnimationFrame(() => { S.ustBekliyor = false; ustCiz(); }); } }
+/* Emek ölçümü: karede geçen etkin süre (30 sn'den uzun boşluklar sayılmaz) ve yapılan düzeltmeler */
+function emekTik() {
+  if (!S.emek) return;
+  const simdi = performance.now();
+  S.emek.sure += Math.min(simdi - S.emek.son, 30000); S.emek.son = simdi;
+}
+cv.addEventListener('mousedown', e => {
+  if (!S.img) return;
+  emekTik();
+  // Odak bir düğmede kalırsa Tab kutular yerine odağı gezdirir; tuvale tıklayınca odağı bırak.
+  if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
+  if (e.button === 1 || S.space) {
+    S.pan = { x: e.clientX, y: e.clientY, vx: S.view.x, vy: S.view.y };
+    $('#stage').classList.add('panning'); e.preventDefault(); return;
+  }
+  if (e.button !== 0) return;
+  e.preventDefault();
+  const p = toImg(e), sp = toScrPt(e);
+  if (e.altKey) { select(hitBox(p)); return; }
+
+  const startDraw = () => {
+    const [x, y] = clampToImg(p);
+    S.op = { type: 'draw', x0: x, y0: y, x1: x, y1: y, sx: sp[0], sy: sp[1] };
+  };
+  if (S.mode === 'draw' || e.shiftKey) { startDraw(); return; }
+
+  const h = hitHandle(S.sel, sp);
+  if (h) {
+    S.op = { type: 'resize', i: S.sel, h, orig: { ...S.boxes[S.sel] }, snap: snapshot(), moved: false, sx: sp[0], sy: sp[1] };
+    return;
+  }
+  const i = (S.sel >= 0 && S.boxes[S.sel] && insideBox(S.boxes[S.sel], p)) ? S.sel : hitBox(p);
+  if (i >= 0) {
+    if (i !== S.sel) select(i);
+    S.op = { type: 'move', i, start: p, orig: { ...S.boxes[i] }, snap: snapshot(), moved: false, sx: sp[0], sy: sp[1] };
+    return;
+  }
+  if (p[0] < 0 || p[1] < 0 || p[0] > W() || p[1] > H()) { select(-1); return; }
+  startDraw();
+});
+
+window.addEventListener('mousemove', e => {
+  if (S.pan) {
+    S.view.x = S.pan.vx + e.clientX - S.pan.x; S.view.y = S.pan.vy + e.clientY - S.pan.y; cizIste(); return;
+  }
+  if (!S.img) return;
+  S.fare = e.target === cv || S.op ? toScrPt(e) : null;
+  const op = S.op;
+  if (!op) { if (e.target === cv) updateCursor(e); if (S.arti) ustIste(); return; }
+  const sp = toScrPt(e);
+  const far = Math.hypot(sp[0] - op.sx, sp[1] - op.sy) >= DRAG_MIN;
+  const [x, y] = clampToImg(toImg(e));
+
+  if (op.type === 'draw') { op.x1 = x; op.y1 = y; cizIste(); return; }
+  if (!op.moved && !far) return;
+  op.moved = true;
+  const o = op.orig, b = S.boxes[op.i];
+  if (!b) return;
+  if (op.type === 'move') {
+    const bw = o.x2 - o.x1, bh = o.y2 - o.y1, p = toImg(e);
+    const nx = clamp(o.x1 + p[0] - op.start[0], 0, W() - bw);
+    const ny = clamp(o.y1 + p[1] - op.start[1], 0, H() - bh);
+    Object.assign(b, { x1: nx, y1: ny, x2: nx + bw, y2: ny + bh });
+  } else {
+    let { x1, y1, x2, y2 } = o;
+    if (op.h.includes('w')) x1 = x;
+    if (op.h.includes('e')) x2 = x;
+    if (op.h.includes('n')) y1 = y;
+    if (op.h.includes('s')) y2 = y;
+    Object.assign(b, { x1: Math.min(x1, x2), x2: Math.max(x1, x2), y1: Math.min(y1, y2), y2: Math.max(y1, y2) });
+  }
+  cizIste();
+});
+
+window.addEventListener('mouseup', () => {
+  if (S.pan) { S.pan = null; $('#stage').classList.remove('panning'); return; }
+  const op = S.op; if (!op) return;
+  S.op = null;
+
+  if (op.type === 'draw') {
+    const x1 = Math.min(op.x0, op.x1), x2 = Math.max(op.x0, op.x1), y1 = Math.min(op.y0, op.y1), y2 = Math.max(op.y0, op.y1);
+    if ((x2 - x1) * S.view.s < 4 || (y2 - y1) * S.view.s < 4) {
+      // Sürüklemeden tıklama: altında kutu varsa seç; yoksa model adayını ekle; o da yoksa seçimi kaldır
+      const p0 = [op.x0, op.y0], hit = hitBox(p0);
+      if (hit >= 0) { select(hit); return; }
+      const a = S.mode === 'edit' ? adayBul(p0) : null;
+      if (a) {
+        if (S.emek) S.emek.eklenen++;
+        pushUndo(); S.boxes.push({ cls: a.cls, x1: a.x1, y1: a.y1, x2: a.x2, y2: a.y2, m: a.s });
+        setDirty(true); select(S.boxes.length - 1);
+        toast(`Model adayı eklendi: ${S.classes[a.cls]} (güven ${a.s.toFixed(2)}). Yanlışsa Delete.`);
+        return;
+      }
+      select(-1); return;
+    }
+    pushUndo(); S.boxes.push({ cls: S.cls, x1, y1, x2, y2 });
+    if (S.emek) S.emek.eklenen++;
+    if (S.tekCizim) { S.tekCizim = false; setMode('edit'); }
+    setDirty(true); select(S.boxes.length - 1); return;
+  }
+  if (op.moved) {
+    const b = S.boxes[op.i];
+    if (b.x2 - b.x1 < 1 || b.y2 - b.y1 < 1) {
+      S.boxes[op.i] = { ...op.orig }; toast('Kutu çok küçüldü, geri alındı.');
+    } else { delete b.m; pushUndo(op.snap); setDirty(true); if (S.emek) S.emek.duzeltilen++; }
+  }
+  renderBoxes(); draw();
+});
+
+function updateCursor(e) {
+  if (S.space) return;
+  if (S.mode === 'draw' || e.shiftKey) { cv.style.cursor = 'crosshair'; return; }
+  const p = toImg(e), sp = toScrPt(e);
+  const h = hitHandle(S.sel, sp);
+  if (h) { cv.style.cursor = CURSOR[h]; return; }
+  if (hitBox(p) >= 0) { cv.style.cursor = 'move'; return; }
+  cv.style.cursor = adayBul(p) ? 'cell' : 'crosshair';
+}
+
+cv.addEventListener('wheel', e => {
+  if (!S.img) return;
+  e.preventDefault();
+  const r = cv.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+  const k = Math.exp(-e.deltaY * 0.0015), s = Math.min(Math.max(S.view.s * k, 0.05), 40);
+  S.view.x = mx - (mx - S.view.x) * (s / S.view.s);
+  S.view.y = my - (my - S.view.y) * (s / S.view.s);
+  S.view.s = s; cizIste();
+}, { passive: false });
+
+/* ---------------- klavye ---------------- */
+/* v3.6: ok tuşlarıyla ince ayar. Kutu seçiliyken oklar kutuyu kaydırır (Shift: 10 piksel); Alt + ok sağ / alt
+   kenarı büyütür-küçültür. Art arda basışlar tek geri alma adımı sayılır. Kutu seçili değilken → / ← kare değiştirir. */
+function kutuOkla([dx, dy], adim, boyut) {
+  const b = S.boxes[S.sel];
+  if (!b || !S.img) return;
+  const simdi = performance.now();
+  if (!S.okGrup || S.okGrup.i !== S.sel || simdi - S.okGrup.t > 800) {
+    pushUndo();
+    if (S.emek) S.emek.duzeltilen++;
+  }
+  S.okGrup = { i: S.sel, t: simdi };
+  if (boyut) {
+    if (dx) b.x2 = clamp(b.x2 + dx * adim, b.x1 + 1, W());
+    if (dy) b.y2 = clamp(b.y2 + dy * adim, b.y1 + 1, H());
+  } else {
+    const bw = b.x2 - b.x1, bh = b.y2 - b.y1;
+    const nx = clamp(b.x1 + dx * adim, 0, W() - bw), ny = clamp(b.y1 + dy * adim, 0, H() - bh);
+    Object.assign(b, { x1: nx, y1: ny, x2: nx + bw, y2: ny + bh });
+  }
+  delete b.m;
+  setDirty(true); renderBoxes(); draw();
+  try {
+    if (!localStorage.getItem('etiketleyici_ok_ipucu')) {
+      localStorage.setItem('etiketleyici_ok_ipucu', '1');
+      toast('Ok tuşları seçili kutuyu kaydırır (Shift: 10 piksel, Alt: boyut). Sonraki kare için D; seçimi kaldırmak için Esc.', 6500);
+    }
+  } catch (err) { /* yok say */ }
+}
+/* Tab: kutular arasında gez. İmleç birden çok kutunun üstündeyse yalnızca onlar arasında (küçükten büyüğe),
+   değilse soldan sağa bütün kutular arasında. Seçilen kutu ekranın dışındaysa görünüm ona kayar. */
+function kutuGez(yon) {
+  if (!S.boxes.length || !S.img) return;
+  const alan = i => (S.boxes[i].x2 - S.boxes[i].x1) * (S.boxes[i].y2 - S.boxes[i].y1);
+  let liste = S.boxes.map((_, i) => i).sort((a, b) => S.boxes[a].x1 - S.boxes[b].x1 || S.boxes[a].y1 - S.boxes[b].y1);
+  if (S.fare) {
+    const p = [(S.fare[0] - S.view.x) / S.view.s, (S.fare[1] - S.view.y) / S.view.s];
+    const alt = liste.filter(i => insideBox(S.boxes[i], p)).sort((a, b) => alan(a) - alan(b));
+    if (alt.length > 1) liste = alt;
+  }
+  const pos = liste.indexOf(S.sel);
+  const j = pos < 0 ? liste[yon > 0 ? 0 : liste.length - 1] : liste[(pos + yon + liste.length) % liste.length];
+  select(j);
+  const b = S.boxes[j], r = cv.getBoundingClientRect();
+  const [x1, y1] = toScr(b.x1, b.y1), [x2, y2] = toScr(b.x2, b.y2);
+  if (x1 < 0 || y1 < 0 || x2 > r.width || y2 > r.height) {
+    S.view.x += r.width / 2 - (x1 + x2) / 2; S.view.y += r.height / 2 - (y1 + y2) / 2; draw();
+  }
+}
+
+window.addEventListener('keydown', async e => {
+  if (document.querySelector('dialog[open]') || ['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName)) return;
+  emekTik();
+  const k = e.key.toLowerCase();
+  const ok = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+  if (ok && !e.ctrlKey && !e.metaKey && !S.op && S.sel >= 0 && S.boxes[S.sel]) {
+    e.preventDefault();
+    kutuOkla(ok, e.shiftKey ? 10 : 1, e.altKey);
+    return;
+  }
+  if (e.key === 'Tab' && !e.ctrlKey && !e.metaKey && !e.altKey && [document.body, cv].includes(document.activeElement)) {
+    e.preventDefault();
+    if (!S.op) kutuGez(e.shiftKey ? -1 : 1);
+    return;
+  }
+  if ((e.ctrlKey || e.metaKey) && k === 's') {
+    e.preventDefault();
+    try { await save(); toast('Kaydedildi'); } catch (err) { toast('Kaydedilemedi: ' + err.message); }
+    return;
+  }
+  if ((e.ctrlKey || e.metaKey) && k === 'z') {
+    e.preventDefault();
+    if (S.op) { cancelOp(); return; }
+    if (S.undo.length) { S.boxes = JSON.parse(S.undo.pop()); S.sel = -1; setDirty(true); renderBoxes(); draw(); }
+    return;
+  }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key === ' ') { S.space = true; cv.style.cursor = 'grab'; e.preventDefault(); return; }
+  if (e.key === 'Escape') { if (S.op) cancelOp(); else if (S.tekCizim) { S.tekCizim = false; setMode('edit'); } else select(-1); return; }
+  if (S.op) return;
+  if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); removeBox(S.sel); return; }
+  if (/^[1-9]$/.test(e.key)) { setClass(Number(e.key) - 1); return; }
+  if (k === 'd' || e.key === 'ArrowRight') { e.preventDefault(); if (!e.repeat) git(+1); return; }
+  if (k === 'a' || e.key === 'ArrowLeft') { e.preventDefault(); if (!e.repeat) git(-1); return; }
+  if (k === 'f') { fit(); return; }
+  if (k === 's') { S.tekCizim = false; setMode('edit'); return; }
+  if (k === 'w') { S.tekCizim = true; setMode('draw'); toast('Bir kutu çiz; bitince düzenleme moduna döner.', 1500); return; }
+  if (k === 'q' || k === 'e') {
+    const n = S.classes.length; if (!n) return;
+    setClass((S.cls + (k === 'e' ? 1 : n - 1)) % n); toast(`Sınıf: ${S.classes[S.cls]}`, 900); return;
+  }
+  if (k === 'x') { S.arti = !S.arti; try { localStorage.setItem('etiketleyici_arti', S.arti ? '1' : '0'); } catch (err) { /* yok say */ } draw(); toast(S.arti ? 'Kılavuz çizgileri açık' : 'Kılavuz çizgileri kapalı', 1000); return; }
+  if (k === 'b') {
+    S.buyutec = !S.buyutec;
+    try { localStorage.setItem('etiketleyici_buyutec', S.buyutec ? '1' : '0'); } catch (err) { /* yok say */ }
+    toast(S.buyutec ? 'Büyüteç açık (köşe tutarken ve çizerken görünür)' : 'Büyüteç kapalı', 1400); return;
+  }
+  if (k === 'c') { S.showCand = !S.showCand; toast(S.showCand ? `Model adayları gösteriliyor (${S.adaylar.length})` : 'Adaylar gizlendi'); draw(); return; }
+});
+window.addEventListener('keyup', e => { if (e.key === ' ') { S.space = false; cv.style.cursor = 'crosshair'; } });
+window.addEventListener('beforeunload', e => { if (S.dirty) { e.preventDefault(); e.returnValue = ''; } });
+window.addEventListener('resize', resize);
+
+$('#mEdit').onclick = () => { S.tekCizim = false; setMode('edit'); };
+$('#mDraw').onclick = () => { S.tekCizim = false; setMode('draw'); };
+$('#gorunum').onchange = e => {
+  S.liste = e.target.value;
+  try { localStorage.setItem('etiketleyici_liste', S.liste); } catch (err) { /* yok say */ }
+  listeKur(); e.target.blur();
+};
+
+/* ---------------- model sekmesi ---------------- */
+function sekme(ad) {
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === ad));
+  $('#tab-etiket').hidden = ad !== 'etiket';
+  $('#tab-model').hidden = ad !== 'model';
+}
+document.querySelectorAll('.tabs button').forEach(b => { b.onclick = () => sekme(b.dataset.tab); });
+$('#modelOzet').onclick = () => sekme('model');
+
+async function durumAl() {
+  let d;
+  try { d = await api('/api/durum'); } catch (e) { return null; }
+  S.durum = d;
+  renderModel(d);
+  await klasorDegistiMi(d.sayac);
+  if (d.tahmin_tur !== S.tahminTur) {
+    const ilk = S.tahminTur === undefined;
+    S.tahminTur = d.tahmin_tur;
+    if (!ilk) {
+      await kuyrukYukle(true);
+      if (d.tahmin_tur) toast(`Yeni model hazır (tur ${d.tahmin_tur}): öneri sırası ve ön etiketler güncellendi.`, 5000);
+      // Açık kare etiketsiz ve dokunulmamışsa yeni önerilerle yeniden aç
+      if (S.idx >= 0 && !S.dirty && !S.pre && !S.images[S.idx].labeled && !S.op) load(S.idx);
+    }
+  }
+  return d;
+}
+async function klasorDegistiMi(s) {
+  // Klasöre dışarıdan resim ya da etiket eklenince/silinince listeyi yenile
+  if (!s || S.op) return;
+  const yerel = S.images.filter(im => im.labeled).length;
+  if (S.testSurum === undefined) S.testSurum = s.test_surum;
+  const testDegisti = s.test_surum !== S.testSurum;
+  if (s.toplam === S.images.length && s.etiketli_toplam === yerel && !testDegisti) return;
+  S.testSurum = s.test_surum;
+  const acik = S.idx >= 0 ? S.images[S.idx].name : null;
+  const eskiEtiketli = acik ? S.images[S.idx].labeled : false;
+  const fark = s.toplam - S.images.length;
+  try { await bilgiYukle(); } catch (e) { return; }
+  $('#empty').hidden = S.images.length > 0;
+  S.idx = acik !== null && byName.has(acik) ? byName.get(acik) : -1;
+  await kuyrukYukle(false);
+  listeKur();
+  if (fark > 0) toast(`Klasöre ${fark} yeni resim eklendi.`, 3500);
+  else if (testDegisti) toast('Resim listesi değişti; test seti yeniden seçildi.', 3500);
+  else if (fark === 0) toast('Klasördeki etiketler değişti, liste güncellendi.', 3000);
+  if (S.idx >= 0) { S.rol = S.images[S.idx].rol; bannerGuncelle(); }
+  // Açık kareye dışarıdan etiket geldiyse ve kullanıcı bir şey değiştirmediyse yeniden aç
+  if (S.idx >= 0 && !S.dirty && !eskiEtiketli && S.images[S.idx].labeled) load(S.idx);
+  else if (S.idx < 0 && S.images.length) load(0);
+}
+async function durumDongu() { await durumAl(); setTimeout(durumDongu, 2000); }
+
+const ASAMA = { baslatiliyor: 'Başlatılıyor', hazirlik: 'Veri hazırlanıyor', egitim: 'Eğitiliyor',
+                test: 'Test setinde ölçülüyor', tahmin: 'Ön etiketler hazırlanıyor', bitti: 'Bitiyor' };
+function renderModel(d) {
+  const s = d.sayac, a = d.ayarlar, is = d.is;
+  const tamam = d.turlar.filter(t => t.durum === 'tamam');
+  const son = tamam[tamam.length - 1];
+  const ozet = $('#modelOzet');
+  ozet.classList.toggle('calisiyor', !!is);
+  if (is) ozet.textContent = `Tur ${is.tur}: ${ASAMA[is.asama] || is.asama}` + (is.ilerleme != null ? ` %${Math.round(is.ilerleme * 100)}` : '');
+  else if (son) ozet.textContent = `Model: tur ${son.tur} · mAP50 ${fmt(son.map50)}`;
+  else ozet.textContent = `Model yok · ilk eğitime ${s.sonraki_kalan} kare`;
+
+  // durum metni
+  let html = '';
+  if (is) {
+    html = `<b>Tur ${is.tur}</b> · ${ASAMA[is.asama] || esc(is.asama)}<br><span class="kucuk">${esc(is.mesaj || '')}</span>`;
+    $('#mdBarKutu').hidden = false;
+    $('#mdBar').style.width = `${Math.round((is.ilerleme || 0) * 100)}%`;
+    const parca = [`Geçen: ${sure(is.gecen_sn)}`];
+    if (is.cihaz) parca.push(`Cihaz: ${esc(is.cihaz)}`);
+    if (is.batch) parca.push(`Batch: ${esc(is.batch)}`);
+    if (is.val_map50 != null) parca.push(`Doğrulama mAP50: ${fmt(is.val_map50)}`);
+    if (is.iptal_istendi) parca.push('İptal ediliyor…');
+    $('#mdIs').textContent = parca.join(' · ');
+  } else {
+    $('#mdBarKutu').hidden = true; $('#mdIs').textContent = '';
+    html = son ? `Son model: <b>tur ${son.tur}</b> (${son.etiketli} etiketli kareyle)<br>mAP50 <b>${fmt(son.map50)}</b> · mAP50-95 ${fmt(son.map5095)} · P ${fmt(son.p)} · R ${fmt(son.r)}`
+               : 'Henüz eğitilmiş model yok.';
+    if (son?.sinif) html += '<table class="sinif"><tr><th>Sınıf</th><th>mAP50</th><th>P</th><th>R</th><th>Nesne</th></tr>'
+      + Object.entries(son.sinif).map(([k, v]) => `<tr><td>${esc(S.classes[k] ?? 'sınıf ' + k)}</td><td>${fmt(v.ap50)}</td><td>${fmt(v.p)}</td><td>${fmt(v.r)}</td><td>${v.nesne}</td></tr>`).join('')
+      + '</table>';
+    if (son?.eski_test) html += '<div class="kucuk">(Bu ölçüm eski test setiyle yapıldı.)</div>';
+    if (s.ilk_model_var || !s.test_eksik) html += `<br><span class="kucuk">Sonraki eğitime ${s.sonraki_kalan} yeni etiketli kare kaldı.</span>`;
+  }
+  $('#mdDurum').innerHTML = html;
+  $('#mdKisaca').innerHTML = kisacaHtml(d, son, tamam);
+  $('#bEgit').disabled = !!is;
+  $('#bIptal').disabled = !is || is.iptal_istendi;
+
+  // uyarılar
+  const u = [];
+  const devam = '<br><button class="btn" data-oto-devam>Otomatik eğitimi sürdür</button>';
+  if (d.oto_beklet === 'plato') u.push(['yesil', `<b>Durma kuralı sağlandı:</b> son ${a.plato_tur} turda mAP50 artışı ${fmt(a.plato_esik, 3)}’in altında kaldı. Model doyuma ulaştı; kalan kareleri hızla onaylayabilirsin.` + devam]);
+  if (d.oto_beklet === 'ice_aktarma') {
+    const x = d.xml_aktarim || {};
+    u.push(['sari', `<b>${x.sayi || ''} kare .xml etiketinden içe aktarıldı (${x.kutu ?? ''} kutu).</b> Sınıflar: ${esc(S.classes.join(', '))}`
+      + (x.yeni_siniflar?.length ? ` <b>(yeni eklenen: ${esc(x.yeni_siniflar.join(', '))})</b>` : '')
+      + '. Birkaç kareye bakıp sınıfların doğru geldiğini kontrol et; otomatik eğitim sen onaylayana kadar bekliyor.' + devam]);
+  }
+  if (d.oto_beklet === 'iptal') u.push(['sari', 'Otomatik eğitim beklemede (son tur iptal edildi ya da yarıda kaldı).' + devam]);
+  if (d.oto_beklet === 'hata' && d.son_hata) {
+    u.push(['kirmizi', `<b>Eğitim hatası${d.son_hata.tur ? ' (tur ' + d.son_hata.tur + ')' : ''}:</b> ${esc(d.son_hata.mesaj || '')}`
+      + (d.son_hata.log?.length ? `<details><summary>Ayrıntı (log)</summary><pre>${esc(d.son_hata.log.join('\n'))}</pre></details>` : '') + devam]);
+  }
+  if (!d.test_onay) {
+    u.unshift(['sari', `<b>Test seti henüz onaylanmadı</b> (şu an ${s.test} kare). Eğitim, test setini onaylayınca başlar.`
+      + '<br><button class="btn ana" data-test-sec>Test setini seç</button>']);
+  }
+  if (s.model_etiketli > 0 && d.tahmin_tur && !is) {
+    u.push(['sari', `<b>${s.model_etiketli} kare model etiketiyle (M) kontrolünü bekliyor.</b> M: kutuları model koydu, sen henüz bakmadın. `
+      + 'Bu kareler sen açıp D ile onaylayana kadar eğitimde kullanılmaz; her yeni modelden sonra kendiliğinden güncellenir. '
+      + `Eşiği değiştirdiysen hemen güncel eşikle (${fmt(a.conf_on_etiket)}) yenileyebilirsin.<br><button class="btn" data-m-yenile>M etiketlerini yenile</button>`]);
+  }
+  if (s.model_etiketlenebilir > 0 && !is) {
+    u.push(['yesil', `<b>Model, etiketsiz ${s.model_etiketlenebilir} kareye kutu önerdi. Bu kareleri etiketleyeyim mi?</b> `
+      + 'Etiketlenen kareler <b>M</b> ile işaretlenir; sen açıp D ile onaylayana kadar eğitimde kullanılmaz.'
+      + '<br><button class="btn ana" data-model-etiketle>Evet, etiketle</button>']);
+  }
+  const tr = d.tarama || {};
+  if (tr.eslesmeyen) u.push(['sari', `Klasörde hiçbir resimle adı eşleşmeyen <b>${tr.eslesmeyen}</b> etiket dosyası var (örn. ${esc(tr.ornek.join(', '))}). Etiket dosyasının adı resimle aynı olmalı: kare_1.jpg ↔ kare_1.txt / .xml / .json.`]);
+  for (const x of tr.dis || []) u.push(['sari', `<b>${esc(x.klasor)}</b> klasöründe bu resimlere ait <b>${x.sayi}</b> etiket var ama resimlerin yanında değil. Görünmeleri için bu dosyaları resim klasörüne kopyala.`]);
+  if (!a.oto_egitim) u.push(['sari', 'Otomatik eğitim kapalı. “Şimdi eğit” ile elle başlatabilir ya da Ayarlar’dan açabilirsin.']);
+  else if (s.test_eksik && !is && d.test_onay) u.push(['sari', `Otomatik eğitim, test seti tamamlanınca başlar (${s.test_etiketli}/${s.test} etiketli). Beklemeden denemek için “Şimdi eğit”.`]);
+  if (!d.model_dosyasi_var) u.push(['sari', `<b>${esc(a.model)}</b> uygulama klasöründe yok. İlk eğitimde internetten indirilmeye çalışılır; bağlantın yavaşsa dosyayı tarayıcıdan indirip uygulama klasörüne koy.`]);
+  const cihaz = is?.cihaz || son?.cihaz;
+  if (cihaz && /CPU/i.test(cihaz)) u.push(['kirmizi', 'Ekran kartı kullanılamıyor, eğitim işlemcide çalışıyor (çok yavaş). PyTorch’un CUDA sürümünü kur.']);
+  $('#mdUyari').innerHTML = u.map(([c, t]) => `<div class="uyari ${c}">${t}</div>`).join('');
+  $('#mdUyari').querySelectorAll('[data-test-sec]').forEach(b => { b.onclick = () => testSor(false); });
+  $('#mdUyari').querySelectorAll('[data-m-yenile]').forEach(b => {
+    b.onclick = async () => {
+      try {
+        const r = await api('/api/model_etiketle', { yenile: true });
+        toast(`${r.sayi} M karesi güncel eşikle (${fmt(a.conf_on_etiket)}) yenilendi.`, 4000);
+        await bilgiYukle(); await kuyrukYukle(false); listeKur(); durumAl();
+        if (S.idx >= 0 && S.images[S.idx].model && !S.dirty) load(S.idx);
+      } catch (e) { toast(e.message, 5000); }
+    };
+  });
+  const em = d.emek;
+  $('#mdEmek').innerHTML = em
+    ? `Son ${em.son.kare} kare: ortalama <b>${fmt(em.son.sure, 1)} sn</b>/kare · +${fmt(em.son.eklenen, 1)} kutu eklendi · −${fmt(em.son.silinen, 1)} silindi · ${fmt(em.son.duzeltilen, 1)} düzeltildi`
+      + (em.model ? `<br>Model önerisiyle: <b>${fmt(em.model.sure, 1)} sn</b>/kare (${em.model.kare} kare)` : '')
+      + (em.elle ? `<br>Önerisiz (elle): <b>${fmt(em.elle.sure, 1)} sn</b>/kare (${em.elle.kare} kare)` : '')
+      + `<br>Toplam ${em.toplam} kayıt · <a href="/api/emek.csv" download>CSV olarak indir</a>`
+    : 'Henüz kayıt yok. Her kaydettiğin karede geçen süre ve yaptığın düzeltmeler burada birikir.';
+  if (!d.test_onay && !S.testSoruldu && s.toplam > 0 && !document.querySelector('dialog[open]')) { S.testSoruldu = true; testSor(false); }
+  $('#mdUyari').querySelectorAll('[data-model-etiketle]').forEach(b => {
+    b.onclick = async () => {
+      if (!confirm(`Model ${s.model_etiketlenebilir} kareyi etiketleyecek. Bu kareler M işaretli olacak ve kontrol edene kadar eğitimde kullanılmayacak. Devam edilsin mi?`)) return;
+      try {
+        const r = await api('/api/model_etiketle', {});
+        toast(`${r.sayi} kare model tarafından etiketlendi (M). Öneri sırasından kontrol edebilirsin.`, 5000);
+        await bilgiYukle(); await kuyrukYukle(false); listeKur(); durumAl();
+      } catch (e) { toast(e.message, 5000); }
+    };
+  });
+  $('#mdUyari').querySelectorAll('[data-oto-devam]').forEach(b => {
+    b.onclick = async () => { try { await api('/api/oto_devam', {}); toast('Otomatik eğitim sürdürülüyor.'); durumAl(); } catch (e) { toast(e.message); } };
+  });
+
+  // sayılar
+  const satirlar = [
+    ['Toplam fotoğraf', s.toplam], ['Etiketli (senin)', s.etiketli_toplam - s.model_etiketli],
+  ];
+  if (s.model_etiketli) satirlar.push(['Model etiketi (kontrol bekliyor)', s.model_etiketli]);
+  satirlar.push(['Etiketsiz', s.etiketsiz]);
+  $('#mdSayi').innerHTML = satirlar.map(([a, v]) => `<span>${a}</span><b>${v}</b>`).join('')
+    + `<span class="alt">↳ eğitimde kullanılan etiketli</span><b>${s.havuz_etiketli}</b>`
+    + `<span class="alt">↳ test seti (${d.test_kaynak === 'etiketli' ? 'etiketlilerden seçildi' : 'tüm karelerden'})<button class="linkbtn" data-test-degistir>değiştir</button></span><b>${s.test_etiketli}/${s.test}</b>`
+    + `<span class="alt">↳ tampon (hiç kullanılmaz)</span><b>${s.tampon}</b>`;
+  $('#mdSayi').querySelectorAll('[data-test-degistir]').forEach(el => { el.onclick = () => testSor(false); });
+
+  // adımlar
+  const adim = [];
+  if (!d.test_onay) adim.push([false, `Test setini onayla (şu an ${s.test} kare)`]);
+  else if (s.test) adim.push([!s.test_eksik, d.test_kaynak === 'etiketli' ? `Test seti hazır: etiketli karelerinden ${s.test} tanesi ayrıldı` : `Test setini etiketle: ${s.test_etiketli}/${s.test}`]);
+  else adim.push([true, 'Test seti kapalı (oran 0)']);
+  adim.push([s.ilk_model_var || s.havuz_etiketli >= a.ilk_egitim_esigi, `Tohum karelerini etiketle: ${Math.min(s.havuz_etiketli, a.ilk_egitim_esigi)}/${a.ilk_egitim_esigi}`]);
+  adim.push([s.ilk_model_var, s.ilk_model_var ? 'İlk model eğitildi' : (is ? 'İlk model eğitiliyor…' : 'İlk model eşik dolunca eğitilir')]);
+  adim.push([d.oto_beklet === 'plato', s.ilk_model_var ? `Önerileri düzelt; her ${a.tur_buyuklugu} karede yeniden eğitim (${tamam.length} tur bitti)` : `Önerileri düzelt; her ${a.tur_buyuklugu} karede yeniden eğitim`]);
+  let simdi = adim.findIndex(x => !x[0]);
+  $('#mdAdim').innerHTML = adim.map(([ok, t], i) => `<li class="${ok ? 'ok' : (i === simdi ? 'simdi' : '')}">${ok ? '✓ ' : ''}${esc(t)}</li>`).join('');
+
+  $('#mdEgri').innerHTML = egriSvg(d.turlar);
+  // turlar tablosu
+  const satir = d.turlar.slice().reverse().slice(0, 30).map(t => {
+    const dur = t.durum === 'tamam' ? '' : (t.durum === 'calisiyor' ? 'sürüyor' : (t.durum === 'iptal' ? 'iptal' : 'hata'));
+    return `<tr title="${esc(t.mesaj || '')}"><td>${t.tur}${t.sicak ? '' : '*'}</td><td>${t.etiketli ?? ''}</td>`
+      + (dur ? `<td colspan="2" class="${dur === 'hata' ? 'hata' : ''}">${dur}</td>` : `<td>${fmt(t.map50)}</td><td>${fmt(t.map5095)}</td>`)
+      + `<td>${t.sure_sn != null ? sure(t.sure_sn) : ''}</td></tr>`;
+  }).join('');
+  $('#mdTurlar').innerHTML = d.turlar.length
+    ? `<table class="turlar"><tr><th>Tur</th><th>Kare</th><th>mAP50</th><th>50-95</th><th>Süre</th></tr>${satir}</table><div class="kucuk" style="margin-top:4px">* = sıfırdan (COCO ağırlığıyla) eğitim</div>`
+    : '<div class="none">Henüz tur yok.</div>';
+  if (S.liste === 'kuyruk') gorunumBilgi();
+}
+
+/* Model sekmesinin en üstündeki sade özet: model ne durumda, en büyük sorun ne, şimdi ne yapmalı. */
+function kisacaHtml(d, son, tamam) {
+  const s = d.sayac, a = d.ayarlar, is = d.is, p = [];
+  const ad = k => esc(S.classes[k] ?? 'sınıf ' + k), yuzde = v => `%${Math.round((v || 0) * 100)}`;
+  if (is) p.push(`<p>Model eğitiliyor (tur ${is.tur}${is.ilerleme != null ? `, ${yuzde(is.ilerleme)}` : ''}). Bu sırada etiketlemeye devam edebilirsin.</p>`);
+  if (!son) {
+    if (!is) p.push(`<p>Henüz model yok. İlk eğitime <b>${s.sonraki_kalan}</b> etiketli kare kaldı.</p>`);
+    p.push(`<p class="yap">Şimdi: ${!d.test_onay ? 'test setini onayla.' : s.test_eksik ? `test karelerini etiketle (${s.test_etiketli}/${s.test}).` : 'öneri sırasındaki tohum karelerini etiketle.'}</p>`);
+    return p.join('');
+  }
+  const once = tamam.length > 1 ? tamam[tamam.length - 2] : null;
+  const fark = once && once.map50 != null && son.map50 != null && !once.eski_test ? son.map50 - once.map50 : null;
+  p.push(`<p>Son model <b>tur ${son.tur}</b>: mAP50 <b>${fmt(son.map50)}</b>`
+    + (fark !== null ? ` (önceki tura göre ${fark >= 0 ? '+' : '−'}${fmt(Math.abs(fark))})` : '') + '.</p>');
+  let enKotu = null;
+  for (const [k, v] of Object.entries(son.sinif || {})) {
+    let not = '';
+    if (v.p < 0.5) not = ' → çok yanlış alarm var';
+    else if (v.r < 0.7) not = ' → çok nesne kaçıyor';
+    p.push(`<p><b>${ad(k)}</b>: bulduğu nesne oranı ${yuzde(v.r)}, doğru öneri oranı ${yuzde(v.p)}${not}.</p>`);
+    const puan = Math.min(v.p, v.r);
+    if (!enKotu || puan < enKotu.puan) enKotu = { k, v, puan };
+  }
+  const tz = son.temiz;
+  if (tz && son.p != null) p.push(`<p class="kucuk">Grup ve kopya kutu filtresiyle önerilerin doğruluğu (P) ${fmt(son.p)} → ${fmt(tz.p)}.</p>`);
+  let yap;
+  if (s.model_etiketli > 0) yap = `“Kontrol bekleyenler (M)” listesindeki ${s.model_etiketli} kareyi aç, düzelt, D ile onayla.`;
+  else if (enKotu && enKotu.v.p < 0.5) yap = `${ad(enKotu.k)} önerilerindeki yanlış kutuları sil; ön etiket eşiği şu an ${fmt(a.conf_on_etiket)}. En iyi eşiği Kılavuz sayfasında gör.`;
+  else if (enKotu && enKotu.v.r < 0.7) yap = `${ad(enKotu.k)} için eksik kutuları çiz; model bu sınıfta nesne kaçırıyor.`;
+  else yap = 'Öneri sırasındaki ilk kareleri düzelt ve D ile onayla.';
+  p.push(`<p class="yap">Şimdi: ${yap}${s.sonraki_kalan > 0 && !is ? ` Sonraki eğitime ${s.sonraki_kalan} kare kaldı.` : ''}</p>`);
+  return p.join('');
+}
+
+function egriSvg(turlar) {
+  const pts = turlar.filter(t => t.durum === 'tamam' && t.map50 != null && !t.eski_test);
+  if (!pts.length) return '<div class="none">Henüz ölçüm yok. İlk tur bitince burada etiketli kare sayısına karşı test mAP’si çizilir.</div>';
+  const Wd = 270, Hd = 170, L = 34, R = 10, T = 10, B = 30;
+  const xmax = Math.max(...pts.map(p => p.etiketli)) * 1.08 || 1;
+  const ymax = Math.min(1, Math.max(0.2, Math.ceil(Math.max(...pts.map(p => p.map50)) * 10 + 0.5) / 10));
+  const X = v => L + v / xmax * (Wd - L - R), Y = v => Hd - B - v / ymax * (Hd - T - B);
+  let g = '';
+  for (const yv of [0, ymax / 2, ymax]) {
+    g += `<line x1="${L}" x2="${Wd - R}" y1="${Y(yv)}" y2="${Y(yv)}" style="stroke:var(--line)"/>`
+       + `<text x="${L - 4}" y="${Y(yv) + 3}" text-anchor="end">${fmt(yv, 1)}</text>`;
+  }
+  for (const xv of [0, Math.round(xmax / 2), Math.round(xmax / 1.08)]) {
+    g += `<text x="${X(xv)}" y="${Hd - B + 13}" text-anchor="middle">${xv}</text>`;
+  }
+  g += `<text x="${(L + Wd - R) / 2}" y="${Hd - 3}" text-anchor="middle">etiketli kare</text>`;
+  const yol = key => pts.map((p, i) => `${i ? 'L' : 'M'}${X(p.etiketli).toFixed(1)},${Y(p[key]).toFixed(1)}`).join(' ');
+  g += `<path d="${yol('map5095')}" style="fill:none;stroke:var(--muted);stroke-width:1.5;stroke-dasharray:4 3"/>`;
+  g += `<path d="${yol('map50')}" style="fill:none;stroke:var(--accent);stroke-width:2"/>`;
+  for (const p of pts) {
+    g += `<circle cx="${X(p.etiketli)}" cy="${Y(p.map50)}" r="3.2" style="fill:var(--accent)"><title>Tur ${p.tur}: ${p.etiketli} kare, mAP50 ${fmt(p.map50, 3)}, mAP50-95 ${fmt(p.map5095, 3)}</title></circle>`;
+  }
+  g += `<line x1="${L + 4}" x2="${L + 18}" y1="${T + 4}" y2="${T + 4}" style="stroke:var(--accent);stroke-width:2"/><text x="${L + 22}" y="${T + 7}">mAP50</text>`;
+  g += `<line x1="${L + 70}" x2="${L + 84}" y1="${T + 4}" y2="${T + 4}" style="stroke:var(--muted);stroke-dasharray:4 3"/><text x="${L + 88}" y="${T + 7}">mAP50-95</text>`;
+  return `<svg class="egri" viewBox="0 0 ${Wd} ${Hd}" role="img" aria-label="Öğrenme eğrisi">${g}</svg>`;
+}
+
+async function egitBaslat() {
+  try { const r = await api('/api/egit', {}); toast(r.mesaj); durumAl(); } catch (e) { toast(e.message, 5000); }
+}
+$('#bEgit').onclick = () => { if (S.durum && !S.durum.test_onay) testSor(true); else egitBaslat(); };
+
+/* ---------------- test seti sorusu ---------------- */
+const YERLESIM = { son: 'zaman sırasına göre son', bas: 'zaman sırasına göre ilk', bloklu: '4 farklı yerinden art arda bloklar halinde' };
+function testYardim() {
+  const d = S.durum, E = d.etiketli_sayi, T = d.sayac.toplam, n = Math.max(0, parseInt($('#tSayi').value || '0', 10));
+  const k = $('#tKaynak').value, y = $('#tYerlesim').value;
+  $('#tKaynakYard').textContent = k === 'etiketli'
+    ? `Etiketli ${E} karenden ${YERLESIM[y]} ${n} tanesi ayrılır. Ek etiketleme gerekmez.`
+    : `Tüm ${T} karenden ${YERLESIM[y]} ${n} tanesi ayrılır. Etiketsiz olanları elle etiketlemen gerekir.`;
+  $('#tYerlesimYard').textContent = y === 'bloklu'
+    ? 'Videonun her yerini temsil eder, en dengeli ölçüm budur. Tampon 4 blokta ayrı ayrı uygulandığı için biraz daha fazla kare kullanılmaz.'
+    : 'Tek bir blok: en az kare kaybı, ama sadece videonun o kısmını temsil eder.';
+  $('#tYard').textContent = k === 'etiketli'
+    ? `Eğitime yaklaşık ${Math.max(0, E - n)} etiketli kare kalır. Öneri: etiketlilerin %10–20'si, yani ${Math.round(E * 0.1)}–${Math.round(E * 0.2)} kare. `
+      + 'Çok test karesi daha güvenilir ölçüm, ama eğitime daha az kare demek.'
+    : `Öneri: tüm karelerin %10'u, yani ${Math.round(T * 0.1)} kare. 0 = test seti yok (başarı ölçülmez).`;
+}
+function testSor(sonraEgit) {
+  const d = S.durum; if (!d) return;
+  S.testSonraEgit = sonraEgit;
+  const k = d.test_secim?.kaynak || d.test_kaynak || (d.etiketli_sayi >= 200 ? 'etiketli' : 'tum');
+  $('#tKaynak').value = k === 'son' ? 'tum' : k;
+  $('#tYerlesim').value = d.test_secim?.yerlesim || 'son';
+  $('#tSayi').value = d.sayac.test;
+  $('#tTampon').value = d.test_secim?.tampon ?? d.ayarlar.test_tampon;
+  $('#tSifirlaSatir').hidden = !d.test_kilitli; $('#tSifirla').checked = false;
+  $('#dlgTest .dlgUst').textContent = d.test_kilitli ? 'Test setini değiştir' : 'Test seti kaç kare olsun?';
+  $('#tHata').textContent = '';
+  testYardim();
+  $('#dlgTest').showModal();
+}
+$('#tKaynak').onchange = () => {
+  const d = S.durum, E = d.etiketli_sayi, T = d.sayac.toplam;
+  $('#tSayi').value = $('#tKaynak').value === 'etiketli' ? Math.round(E * 0.1) : Math.round(T * 0.1);
+  testYardim();
+};
+$('#tYerlesim').onchange = testYardim;
+$('#tSayi').oninput = testYardim;
+$('#tVazgec').onclick = () => $('#dlgTest').close();
+$('#testForm').onsubmit = async e => {
+  e.preventDefault();
+  try {
+    const r = await api('/api/test_seti', { kaynak: $('#tKaynak').value, yerlesim: $('#tYerlesim').value, sayi: $('#tSayi').value,
+                                            tampon: $('#tTampon').value, sifirla: $('#tSifirla').checked });
+    $('#dlgTest').close();
+    await bilgiYukle(); S.testSurum = undefined; await durumAl(); await kuyrukYukle(false); listeKur();
+    toast(`Test seti onaylandı: ${r.test} kare. Yanındaki ${r.tampon} kare tampon olarak kullanılmayacak.`, 5000);
+    if (S.idx >= 0) { S.rol = S.images[S.idx].rol; bannerGuncelle(); }
+    if (S.testSonraEgit) egitBaslat();
+  } catch (err) { $('#tHata').textContent = err.message; }
+};
+$('#bIptal').onclick = async () => {
+  if (!confirm('Süren eğitim turu iptal edilsin mi?')) return;
+  try { await api('/api/iptal', {}); toast('İptal ediliyor…'); durumAl(); } catch (e) { toast(e.message); }
+};
+
+/* ---------------- ayarlar ---------------- */
+const AYAR_FORM = [
+  ['Temel ayarlar', [
+    { k: 'oto_egitim', t: 'bool', l: 'Otomatik eğitim', h: 'Eşiğe ulaşınca eğitim kendiliğinden başlar.',
+      d: 'Açıkken, yeterli kare etiketlenince eğitim kendiliğinden başlar ve her "tur büyüklüğü" kadar yeni onaylanmış karede tekrarlanır. Kapalıyken eğitim yalnızca "Şimdi eğit" düğmesiyle başlar. Öneri: açık.' },
+    { k: 'ilk_egitim_esigi', t: 'int', l: 'İlk eğitim eşiği (kare)', min: 10, h: 'Bu kadar kare etiketlenince ilk model eğitilir.',
+      d: 'İlk model, bu kadar kare elle etiketlenince eğitilir. Çok az olursa ilk modelin önerileri zayıf olur; çok fazla olursa model yardımı gecikir. Öneri: verinin %10’u (1.000 karede 100).' },
+    { k: 'tur_buyuklugu', t: 'int', l: 'Tur büyüklüğü (kare)', min: 5, h: 'Her bu kadar yeni onaylanmış karede yeniden eğitim.',
+      d: 'Sen her bu kadar yeni kareyi onayladığında model yeniden eğitilir. Küçük değer: model sık güncellenir ama bilgisayar sürekli eğitimde olur. Büyük değer: daha seyrek ama büyük adımlar. Öneri: verinin %5’i (1.000 karede 50).' },
+    { k: 'model', t: 'model', l: 'Model', h: '6 GB ekran kartı için yolo11n önerilir.',
+      d: 'yolo11n en küçük ve en hızlı model; 6 GB ekran kartı için en güvenli seçim. yolo11s daha doğru ama yaklaşık 2–3 kat yavaş ve daha çok bellek ister. Model değişirse sonraki tur sıfırdan (COCO ağırlığından) eğitilir. Uygulama klasörüne koyduğun başka .pt dosyaları da listede görünür.' },
+    { k: 'ilk_epoch', t: 'int', l: 'İlk eğitim en fazla (epoch)', min: 1, h: 'Üst sınır; model öğrenmeyi bırakınca daha önce durur.',
+      d: 'Bir epoch, modelin tüm eğitim karelerini bir kez görmesidir. Bu sayı üst sınırdır: doğrulama başarısı artmayı bırakınca (erken durdurma) eğitim daha önce biter. Öneri: 100.' },
+    { k: 'tur_epoch', t: 'int', l: 'Sonraki turlar en fazla (epoch)', min: 1, h: 'Önceki modelden devam edildiği için daha az yeter.',
+      d: 'İkinci turdan itibaren model öncekinden devam eder, bu yüzden daha az epoch yeter. Üst sınırdır; erken durdurma daha önce bitirebilir. Düşük değer turları hızlandırır. Öneri: 30.' },
+    { k: 'conf_on_etiket', t: 'float', l: 'Ön etiket güven eşiği', min: 0.01, max: 0.99, h: 'Model bu güvenin üstündeki kutuları önerir.',
+      d: 'Modelin bir kutuyu önermesi için ne kadar emin olması gerektiği (0–1). Düşük (0,25): neredeyse hiç nesne kaçmaz ama çok yanlış kutu gelir, silmen gerekir. Yüksek (0,5): kutular daha doğru ama bazı nesneler kaçar, çizmen gerekir. Öneri: 0,35–0,5. Değiştirdikten sonra Model sekmesinden “M etiketlerini yenile”ye bas.' },
+    { k: 'secim', t: 'sel', l: 'Öneri sırası', o: [['aktif', 'Aktif öğrenme (en kararsız önce)'], ['rastgele', 'Rastgele (karşılaştırma deneyi)']], h: 'Kareler hangi sırayla önerilsin.',
+      d: 'Aktif öğrenme: model en emin olmadığı kareleri önce gösterir; aynı emekle daha hızlı iyileşir. Rastgele: kareler karışık sırayla gelir; aktif öğrenmenin işe yarayıp yaramadığını ölçen karşılaştırma deneyi için kullanılır.' },
+  ]],
+  ['Gelişmiş ayarlar (genelde dokunmana gerek yok)', [
+    { k: 'patience', t: 'int', l: 'Erken durdurma sabrı (epoch)', min: 0, h: 'Bu kadar epoch gelişme olmazsa eğitim durur.',
+      d: 'Doğrulama başarısı bu kadar epoch üst üste artmazsa eğitim durur: "model artık öğrenmiyor". Düşük değer eğitimi kısaltır ama çok düşükse model tam öğrenmeden durabilir. 0 = kapalı (epoch sınırına kadar sürer). Öneri: 10.' },
+    { k: 'batch', t: 'int', l: 'Batch', min: -1, h: '-1 = otomatik.',
+      d: 'Ekran kartına aynı anda verilen parça sayısı. -1 = otomatik (önerilen): ekran kartı belleğine göre program seçer. Bellek hatası olursa program yarıya indirip tekrar dener.' },
+    { k: 'workers', t: 'int', l: 'Veri yükleyici (workers)', min: 0, h: 'Windows’ta sorun çıkarsa 0.',
+      d: 'Eğitim verisini hazırlayan yardımcı süreç sayısı. Fazlası hızlandırır ama çok RAM ister. Windows’ta "disk belleği dosyası çok küçük" (WinError 1455) hatası alırsan 0 yap; sanal belleği büyüttüysen 2. Öneri: 0–2.' },
+    { k: 'parca', t: 'sel', l: 'Parça boyutu (piksel)', o: [320, 480, 512, 640, 800, 960, 1024, 1280].map(v => [v, v]), h: '4K kare bu boyutta parçalara bölünür.',
+      d: '4K kare bu boyutta karelere bölünerek eğitilir ve tahmin edilir; böylece küçük nesneler kaybolmaz. 640 standarttır. Büyütmek (800–1280) eğitimi yavaşlatır ve daha çok bellek ister. Değişirse sonraki tur sıfırdan eğitilir.' },
+    { k: 'ortusme', t: 'float', l: 'Parça örtüşmesi', min: 0, max: 0.5, h: 'Komşu parçaların üst üste binme oranı.',
+      d: 'Komşu parçaların ne kadar üst üste bineceği (0–0,5). Parça kenarına denk gelen nesneler kesilip kaçmasın diye gerekir. 0,2 ile 4K kare 32 parçaya bölünür. Artırmak daha yavaş ama kenarlarda daha güvenli.' },
+    { k: 'bos_parca_orani', t: 'float', l: 'Boş parça oranı', min: 0, max: 1, h: 'Nesnesiz parçaların ne kadarı eğitime girsin.',
+      d: 'Hiç nesne içermeyen parçaların ne kadarı eğitime girsin (0–1). Model "burada nesne yok"u da öğrenir, yanlış alarm azalır. Çok artırmak eğitimi yavaşlatır. Öneri: 0,1–0,2.' },
+    { k: 'dogrulama_orani', t: 'float', l: 'Doğrulama oranı', min: 0.05, max: 0.5, h: 'Erken durdurma için ayrılan etiketli kareler.',
+      d: 'Etiketli karelerin bu kadarı eğitimde kullanılmaz; eğitim sırasında "model hâlâ öğreniyor mu" diye kontrol için ayrılır (erken durdurma buna bakar). Test setinden ayrıdır. Öneri: 0,15.' },
+    { k: 'agirlik_u', t: 'float', l: 'Kararsızlık ağırlığı', min: 0, max: 1, h: 'Öncelik = a × kararsızlık + b × titreme.',
+      d: 'Öneri sırasındaki öncelik = a × kararsızlık + b × titreme. Kararsızlık: modelin %50 civarında emin olduğu, "var mı yok mu" diyemediği kutular. Öneri: 0,7.' },
+    { k: 'agirlik_t', t: 'float', l: 'Titreme ağırlığı', min: 0, max: 1, h: 'Sadece video verisinde anlamlı.',
+      d: 'Titreme: ardışık karelerde bir nesnenin "var, yok, var" diye görünüp kaybolması; modelin o karede hata yapıyor olabileceğini gösterir. Sadece video verisinde anlamlı. Öneri: 0,3.' },
+    { k: 'titreme', t: 'bool', l: 'Titreme kullan (video verisi)', h: 'Bağımsız fotoğraflarda kapat.',
+      d: 'Kareler ardışık video kareleriyse açık kalsın. Birbirinden bağımsız fotoğraflarda (yemekhane gibi) kapat.' },
+    { k: 'denetim_orani', t: 'float', l: 'Denetim oranı', min: 0, max: 0.5, h: 'Model önerisi gizlenen rastgele karelerin oranı.',
+      d: 'Her turda bu oranda rastgele kare, model önerisi bilerek GİZLENEREK gösterilir (D işaretli). Böylece hiç öneri görmeden etiketlenen kareler de olur: modelin hatalarını farkında olmadan onaylama eğilimine (onay yanlılığı) karşı bir kontrol. Öneri: 0,05.' },
+    { k: 'plato_tur', t: 'int', l: 'Durma kuralı: kaç tur üst üste', min: 1, h: 'Gelişme durunca otomatik eğitim durur.',
+      d: 'Art arda bu kadar turda test mAP50 artışı eşiğin altında kalırsa otomatik eğitim durur: model doyuma ulaştı demektir. Öneri: 3.' },
+    { k: 'plato_esik', t: 'float', l: 'Durma kuralı: mAP artış eşiği', min: 0, max: 0.5, h: '0,01 = 1 puan.',
+      d: 'Bir turdaki mAP50 artışı bundan küçükse "gelişmedi" sayılır. 0,01 = 1 puan. Öneri: 0,01.' },
+    { k: 'oneri_nms', t: 'float', l: 'Kopya kutu sınırı (NMS)', min: 0.3, max: 0.95, h: 'Bu orandan fazla örtüşen aynı sınıf önerilerden düşük güvenlisi atılır.',
+      d: 'Model aynı nesneye iki kutu koyarsa ikinci kutu \"yanlış alarm\" sayılır ve silmen gerekir. İki öneri bu orandan fazla örtüşürse (IoU) düşük güvenlisi atılır. v3.5\u2019te model içinde 0,7 idi; v3.6\u2019da öneriler ayrıca 0,5 ile temizlenir. Kalabalıkta yan yana gerçek nesneler kayboluyorsa 0,6 yap. Değişince M etiketlerini yenile.' },
+    { k: 'grup_filtre', t: 'bool', l: 'Grup kutusu filtresi', h: 'Yan yana iki nesneyi birden içine alan büyük öneriyi atar.',
+      d: 'Model bazen yan yana iki insanı tek büyük kutuya alır ve onların ayrı kutularını da önerir. Açıkken, aynı sınıftan en az iki ayrı kutuyu neredeyse tamamen içine alan büyük öneri atılır. Öneri: açık.' },
+  ], true],
+];
+const tumAlanlar = () => AYAR_FORM.flatMap(g => g[1]);
+
+function ayarFormuKur() {
+  const d = S.durum, a = d.ayarlar, govde = $('#ayarGovde');
+  govde.innerHTML = '';
+  for (const [baslik, alanlar, gelismis] of AYAR_FORM) {
+    const kap = document.createElement(gelismis ? 'details' : 'fieldset');
+    if (gelismis) { kap.className = 'gelismis'; kap.innerHTML = `<summary>${esc(baslik)}</summary>`; }
+    else kap.innerHTML = `<legend>${esc(baslik)}</legend>`;
+    for (const f of alanlar) {
+      const id = 'a_' + f.k, div = document.createElement('div');
+      div.className = 'alan';
+      let giris;
+      if (f.t === 'bool') giris = `<input type="checkbox" id="${id}" ${a[f.k] ? 'checked' : ''}>`;
+      else if (f.t === 'sel' || f.t === 'model') {
+        const sec = f.t === 'model' ? d.modeller.map(m => [m, m]) : f.o;
+        giris = `<select id="${id}">${sec.map(([v, l]) => `<option value="${esc(v)}" ${String(v) === String(a[f.k]) ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
+      } else giris = `<input type="number" id="${id}" value="${a[f.k]}" ${f.min !== undefined ? `min="${f.min}"` : ''} ${f.max !== undefined ? `max="${f.max}"` : ''} step="${f.t === 'float' ? 'any' : 1}">`;
+      div.innerHTML = `<label for="${id}">${esc(f.l)}<span class="soru" tabindex="0" data-ipucu="${esc(f.d)}">?</span></label>${giris}<div class="yard">${esc(f.h || '')}</div>`;
+      kap.appendChild(div);
+    }
+    govde.appendChild(kap);
+  }
+  govde.querySelectorAll('.soru').forEach(el => {
+    el.onmouseenter = el.onfocus = () => ipucuGoster(el);
+    el.onmouseleave = el.onblur = ipucuGizle;
+    el.onclick = ev => { ev.preventDefault(); ipucuGoster(el); };
+  });
+}
+function ipucuGoster(el) {
+  const ip = $('#ipucu'), r = el.getBoundingClientRect(), gen = Math.min(340, innerWidth - 16);
+  ip.textContent = el.dataset.ipucu; ip.style.maxWidth = gen + 'px'; ip.hidden = false;
+  ip.style.left = Math.max(8, Math.min(r.left - 12, innerWidth - gen - 8)) + 'px';
+  ip.style.top = (r.bottom + 8) + 'px';
+  const h = ip.getBoundingClientRect().height;
+  if (r.bottom + 8 + h > innerHeight - 8) ip.style.top = Math.max(8, r.top - h - 8) + 'px';
+}
+function ipucuGizle() { $('#ipucu').hidden = true; }
+function ayarlariAc() {
+  if (!S.durum) return;
+  ayarFormuKur();
+  $('#ayarHata').textContent = ''; $('#ayarCikti').textContent = '';
+  $('#dlg').showModal();
+}
+function deger(v) { return typeof v === 'boolean' ? (v ? 'evet' : 'hayır') : String(v).replace(/^(-?\d+)\.(\d+)$/, '$1.$2'); }
+function ayarMetni() {
+  const d = S.durum, a = d.ayarlar, s = d.sayac, son = d.turlar.filter(t => t.durum === 'tamam').pop();
+  const satir = [`# Etiketleyici ayarları · ${new Date().toLocaleString('tr-TR')}`,
+    `# Durum: ${s.toplam} fotoğraf · ${s.etiketli_toplam - s.model_etiketli} etiketli · ${s.model_etiketli} model etiketi (M) · ${s.etiketsiz} etiketsiz · test ${s.test_etiketli}/${s.test}`,
+    son ? `# Son model: tur ${son.tur} · ${son.etiketli} kare · mAP50 ${fmt(son.map50)} · mAP50-95 ${fmt(son.map5095)} · P ${fmt(son.p)} · R ${fmt(son.r)}` : '# Son model: henüz yok'];
+  for (const [baslik, alanlar] of AYAR_FORM) {
+    satir.push('', `# --- ${baslik} ---`);
+    for (const f of alanlar) satir.push(`${(f.k + ' = ' + deger(a[f.k])).padEnd(30)} # ${f.l}`);
+  }
+  return satir.join('\n');
+}
+async function panoya(metin) {
+  try { await navigator.clipboard.writeText(metin); return true; } catch (e) {
+    const t = document.createElement('textarea'); t.value = metin; document.body.appendChild(t); t.select();
+    const ok = document.execCommand('copy'); t.remove(); return ok;
+  }
+}
+$('#ayarKopyala').onclick = async () => {
+  $('#ayarCikti').textContent = (await panoya(ayarMetni())) ? '✓ Ayarlar panoya kopyalandı. Bana yapıştırabilirsin (Ctrl+V).' : '✗ Kopyalanamadı.';
+};
+$('#ayarUygula').onclick = async () => {
+  const out = $('#ayarCikti'), metin = $('#ayarKomut').value.trim(), bilinen = S.durum.ayarlar;
+  if (!metin) { out.textContent = 'Önce bir ayar komutu yapıştır.'; return; }
+  let veri = {}; const notlar = [];
+  if (metin.startsWith('{')) {
+    try { veri = JSON.parse(metin); } catch (e) { out.textContent = '✗ JSON okunamadı: ' + e.message; return; }
+  } else {
+    for (let l of metin.split(/\r?\n/)) {
+      l = l.replace(/#.*$/, '').trim();
+      if (!l) continue;
+      const m = l.match(/^([A-Za-z_]\w*)\s*[:=]\s*(.+)$/);
+      if (!m) { notlar.push(`✗ anlaşılmadı: ${l}`); continue; }
+      let v = m[2].trim().replace(/^["']|["']$/g, '');
+      if (/^-?\d+,\d+$/.test(v)) v = v.replace(',', '.');
+      veri[m[1]] = v;
+    }
+  }
+  const gecerli = {};
+  for (const [k, v] of Object.entries(veri)) { if (k in bilinen) gecerli[k] = v; else notlar.push(`✗ bilinmeyen ayar: ${k}`); }
+  if (!Object.keys(gecerli).length) { out.textContent = notlar.join('\n') || 'Uygulanacak ayar bulunamadı.'; return; }
+  const eski = { ...bilinen };
+  try {
+    const r = await api('/api/ayarlar', gecerli);
+    const tamam = Object.keys(gecerli).map(k => `✓ ${k}: ${deger(eski[k])} → ${deger(r.ayarlar[k])}`);
+    out.textContent = [...tamam, ...notlar].join('\n');
+    await durumAl(); ayarFormuKur(); await kuyrukYukle(false); listeKur();
+  } catch (e) { out.textContent = [...notlar, '✗ ' + e.message].join('\n'); }
+};
+$('#bAyar').onclick = ayarlariAc;
+$('#ayarVazgec').onclick = () => $('#dlg').close();
+$('#ayarForm').onsubmit = async e => {
+  e.preventDefault();
+  const yeni = {};
+  for (const f of tumAlanlar()) {
+    const el = document.getElementById('a_' + f.k);
+    if (!el || el.disabled) continue;
+    yeni[f.k] = f.t === 'bool' ? el.checked : el.value;
+  }
+  try {
+    await api('/api/ayarlar', yeni);
+    $('#dlg').close();
+    toast('Ayarlar kaydedildi.');
+    await bilgiYukle();
+    await durumAl();
+    await kuyrukYukle(false);
+    listeKur();
+    if (S.idx >= 0 && !S.dirty) { S.rol = S.images[S.idx].rol; bannerGuncelle(); }
+  } catch (err) { $('#ayarHata').textContent = err.message; }
+};
+
+resize();
+init().catch(e => toast('Başlatılamadı: ' + e.message, 6000));
+</script>
+</body>
+</html>
