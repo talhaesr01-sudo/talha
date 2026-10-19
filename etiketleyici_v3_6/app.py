@@ -1,5 +1,5 @@
 """
-Etiketleyici - sürüm 3.6: model destekli etiketleme + aktif öğrenme
+Etiketleyici - sürüm 3.7: model destekli etiketleme + aktif öğrenme
 
 Akış:
   1) Dondurulmuş test seti (son %10 kare) elle etiketlenir. Eğitime hiç girmez, sadece ölçüm içindir.
@@ -33,6 +33,7 @@ import numpy as np
 
 from flask import Flask, Response, abort, jsonify, request, send_file, send_from_directory
 
+import davranis as D
 import ortak as O
 
 BASE = Path(__file__).resolve().parent
@@ -698,17 +699,20 @@ def get_labels(name):
 @app.post("/api/labels/<path:name>")
 def save_labels(name):
     p = find_image(name)
-    boxes = (request.get_json(force=True) or {}).get("boxes", [])
-    emek = (request.get_json(silent=True) or {}).get("emek")
-    lines = []
+    govde = request.get_json(force=True) or {}
+    boxes = govde.get("boxes", [])
+    emek = govde.get("emek")
+    lines, yazilan = [], []
     for b in boxes:
         vals = [min(max(float(b[k]), 0.0), 1.0) for k in ("cx", "cy", "w", "h")]
         if vals[2] <= 0 or vals[3] <= 0:
             continue
         lines.append(f"{int(b['cls'])} " + " ".join(f"{v:.6f}" for v in vals))
+        yazilan.append({"cls": int(b["cls"]), **dict(zip(("cx", "cy", "w", "h"), vals))})
     # Boş dosya da yazılır: "bu görüntüde nesne yok" anlamına gelir.
     O.metin_yaz(label_path(p), "\n".join(lines) + ("\n" if lines else ""))
     etiket_degisti()
+    davranis_kaydet(name, govde.get("davranis"), yazilan)
     if isinstance(emek, dict):
         try:
             kayit = {"ad": name, "zaman": round(time.time()), "kutu": len(lines),
@@ -723,6 +727,31 @@ def save_labels(name):
             DURUM["model_etiket"] = [a for a in DURUM["model_etiket"] if a != name]
             durum_yaz()
     return jsonify(ok=True, count=len(lines))
+
+
+def davranis_kaydet(ad, istemci, kutular):
+    """v3.7: kullanıcı davranışı kaydı (davranis.py). Kayıt yazılamasa bile etiket kaydı başarılı sayılır."""
+    if not isinstance(istemci, dict):
+        return   # eski istemci (v3.6 sayfası açık kalmış): yalnızca emek.jsonl yazılır
+    try:
+        CFG["davranis"].ekle(D.kayit_olustur(ad, CFG.get("kullanici"), istemci, kutular))
+    except (OSError, TypeError, ValueError) as e:
+        print(f"[Uyarı] Davranış kaydı yazılamadı ({ad}): {e}")
+
+
+@app.get("/api/davranis.csv")
+def davranis_csv():
+    return Response(D.csv_metni(CFG["davranis"].kayitlar()), mimetype="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": "attachment; filename=davranis.csv"})
+
+
+@app.get("/api/davranis_ozet")
+def davranis_ozet():
+    """Sınıf başına model kutularının akıbeti (onay / düzeltme / sınıf değişimi / silme) ve eklenen yeni kutular.
+    Arayüz şimdilik göstermiyor; sonraki fazlardaki öğrenme ve hata ayıklama için."""
+    kayitlar = CFG["davranis"].kayitlar()
+    return jsonify(kayit=len(kayitlar), kullanici=CFG.get("kullanici"), siniflar=read_classes(),
+                   sinif=D.sinif_ozeti(kayitlar), min_ornek=D.MIN_ORNEK)
 
 
 def emek_kayitlari():
@@ -1210,13 +1239,14 @@ def egri_csv():
 
 # ================================================================ başlatma
 def main():
-    ap = argparse.ArgumentParser(description="Model destekli YOLO etiketleyici (sürüm 3.6)")
+    ap = argparse.ArgumentParser(description="Model destekli YOLO etiketleyici (sürüm 3.7)")
     ap.add_argument("--images", required=True, help="Görüntülerin bulunduğu klasör")
     ap.add_argument("--labels", help="Etiket klasörü (varsayılan: resimlerle aynı klasör)")
     ap.add_argument("--classes", help="Sınıf listesi dosyası (varsayılan: etiket klasöründeki classes.txt)")
     ap.add_argument("--calisma", help="Modellerin ve tahminlerin tutulacağı klasör (varsayılan: <labels>_calisma)")
     ap.add_argument("--port", type=int, default=5000)
     ap.add_argument("--device", help="Örn. 0 (ekran kartı) veya cpu. Boş = otomatik")
+    ap.add_argument("--kullanici", help="Davranış kaydındaki kullanıcı adı (varsayılan: bilgisayardaki oturum adı)")
     ap.add_argument("--sam", help=argparse.SUPPRESS)   # eski komutlar bozulmasın diye kabul edilir
     ap.add_argument("--crop", help=argparse.SUPPRESS)
     a = ap.parse_args()
@@ -1229,7 +1259,9 @@ def main():
     cal = Path(a.calisma).resolve() if a.calisma else labels.parent / (labels.name + "_calisma")
     cal.mkdir(parents=True, exist_ok=True)
     CFG.update(images=images, labels=labels, calisma=cal,
-               classes=Path(a.classes).resolve() if a.classes else labels / "classes.txt")
+               classes=Path(a.classes).resolve() if a.classes else labels / "classes.txt",
+               kullanici=(a.kullanici or os.environ.get("USERNAME") or os.environ.get("USER") or "varsayilan").strip(),
+               davranis=D.Gunluk(cal / "davranis.jsonl"))
 
     if a.device is not None:
         kayitli = O.json_oku(calisma("ayarlar.json"), {}) or {}

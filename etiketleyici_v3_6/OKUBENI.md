@@ -1,7 +1,32 @@
-# Etiketleyici (sürüm 3.6): model destekli etiketleme + aktif öğrenme
+# Etiketleyici (sürüm 3.7): model destekli etiketleme + aktif öğrenme
 
 Sen kutuları düzeltirsin, model arka planda öğrenir. Belli sayıda kare etiketlenince YOLO kendiliğinden eğitilir,
 etiketsiz karelere ön etiket koyar ve en kararsız olduğu kareleri sana önce gösterir.
+
+## v3.7'de neler değişti (Faz 1)
+
+- **Büyüteç kaldırıldı.** Kutu çizerken ve köşe tutarken imlecin yanında çıkan büyütülmüş görüntü artık yok; fare normal
+  imleç olarak kalır. Kenarı piksel piksel oturtmak için tekerlekle yakınlaştır ya da kutuyu seçip ok tuşlarını kullan
+  (1 piksel, Shift ile 10; Alt + ok ile boyut). B tuşu artık bir şey yapmaz.
+- **Sol menü sadeleşti: üç kategori.** Her kare bunlardan birindedir, sayıları yanında yazar. Kategoriye tek tıklayınca
+  o listenin ilk karesi açılır.
+  - **MODEL ÖNERDİ**: modelin kutu önerdiği etiketsiz kareler ve M kareleri. Modelin en kararsız olduğu kare en üstte.
+  - **ETİKETSİZ**: henüz ne etiketi ne model önerisi olan kareler. Önce test kareleri (T), sonra tohum kareler, sonra
+    zaman sırası. Model yokken çalışma bu listede yürür.
+  - **ONAYLANDI**: senin etiketlediğin ya da D ile onayladığın kareler.
+
+  Test seti, tampon, denetim ve öncelik eskisi gibi çalışır; yalnızca ayrı liste olarak gösterilmez. Rozetler (T, D, M, –)
+  ve görüntünün üstündeki şerit karenin türünü söyler. Tampon kareler hiç kullanılmadığı için listelerde görünmez.
+- **Daha az tıklama.** Başlıktaki **✓ Onayla · sonraki** düğmesi D ile aynıdır. Bir iş listesi bitince (ör. MODEL ÖNERDİ)
+  program öteki iş listesine (ETİKETSİZ) kendiliğinden geçer.
+- **Davranış kaydı.** Her kaydetmede `<çalışma klasörü>/davranis.jsonl` dosyasına bir satır yazılır: karede geçen
+  süre, eklenen / model adayından eklenen / silinen / taşınan / boyutu değişen / sınıfı değişen kutu sayısı ve geri
+  alma sayısı (ayrı ayrı). Ayrıca karenin açılıştaki kutuları kayıttakilerle karşılaştırılır: modelin her kutusu için
+  "onaylandı / düzeltildi / sınıfı değişti / silindi", kullanıcının çizdiği her yeni kutu için "model kaçırdı".
+  Model sekmesindeki "davranış kaydı CSV" bağlantısıyla Excel'e alınır. Sonraki sürümlerde öncelik puanı ve sınıfa
+  göre ayarlar bu kayıttan öğrenecek. Birden çok kişi etiketliyorsa `--kullanici ad` ile başlat (varsayılan:
+  bilgisayardaki oturum adı). Eski `emek.jsonl` ve "İnsan emeği" özeti aynen sürer.
+- Başlıkta "v3.7" yazar.
 
 ## v3.6'da neler değişti
 
@@ -33,6 +58,8 @@ etiketsiz karelere ön etiket koyar ve en kararsız olduğu kareleri sana önce 
 - app.py: sunucu (arayüz, ayarlar, otomatik eğitim tetikleme)
 - egitim.py: eğitim işçisi (sunucu kendisi başlatır, elle çalıştırma)
 - ortak.py: ortak hesaplar (parçalama, mAP, titreme)
+- davranis.py: kullanıcı davranışı kaydı (v3.7): kutu farkı, davranis.jsonl, sınıf özeti
+- testler/: birim testleri (`python -m pytest testler -q`, pytest gerekir)
 - static/index.html: arayüz
 - static/kilavuz.html: Kılavuz sayfası (ölçütler ve canlı sonuçlar)
 - sinif_sirasi_duzelt.py: sınıf sırasını Teknofest sırasına (tasit=0, insan=1) çevirir
@@ -60,7 +87,7 @@ Model sekmesinde "Otomatik eğitimi sürdür"e bas. .xml'i sonradan değiştirir
 Model eğitildikten sonra Model sekmesinde "Model, etiketsiz N kareye kutu önerdi. Bu kareleri etiketleyeyim mi?"
 kartı çıkar. Evet dersen bu kareler modelin kutularıyla etiketlenir ve M ile işaretlenir. M kareler sen açıp
 D ile onaylayana kadar eğitimde kullanılmaz (model kendi hatalarını öğrenmesin diye). Her yeni modelden sonra M kareler
-yeni önerilerle kendiliğinden güncellenir; eşiği değiştirince "M etiketlerini yenile" ile hemen güncelleyebilirsin. Öneri sırası M kareleri
+yeni önerilerle kendiliğinden güncellenir; eşiği değiştirince "M etiketlerini yenile" ile hemen güncelleyebilirsin. MODEL ÖNERDİ listesi M kareleri
 en şüpheliden başlayarak gösterir. Test, tampon ve denetim kareleri asla model tarafından etiketlenmez.
 
 ## Test seti nasıl seçilir
@@ -82,11 +109,11 @@ etiketlemeye başladığın an ve ilk başarılı turdan sonra sabitlenir.
 
 ## Akış
 
-1. Test seti: son %10 kare (sol listede "Test seti"). Elle, dikkatle etiketle. Eğitime hiç girmez,
+1. Test seti: son %10 kare (ETİKETSİZ listesinin en üstünde, T rozetli). Elle, dikkatle etiketle. Eğitime hiç girmez,
    sadece her turdan sonra başarıyı (mAP) ölçmek için kullanılır. Hemen önündeki 10 kare "tampon"dur, hiç kullanılmaz.
-2. Tohum kareler: "Öneri sırası" listesi eşit aralıklarla seçilmiş 100 kare gösterir. Bunları elle etiketle.
+2. Tohum kareler: ETİKETSİZ listesi test karelerinden sonra eşit aralıklarla seçilmiş 100 kare gösterir. Bunları elle etiketle.
 3. Eşik dolunca (ve test seti tamamsa) ilk eğitim kendiliğinden başlar. Beklemeden başlatmak için Model sekmesinde "Şimdi eğit".
-4. Model bitince "Öneri sırası" yenilenir: en kararsız kareler önce. Model önerileri kesikli çizgiyle gelir.
+4. Model bitince kareler MODEL ÖNERDİ listesine geçer: en kararsız kareler önce. Model önerileri kesikli çizgiyle gelir.
    Yanlışları sil, eksikleri ekle, D ile onayla. Boş bir yere tıklarsan modelin o noktadaki aday kutusu eklenir.
 5. Her "tur büyüklüğü" kadar yeni karede model önceki modelden devam ederek yeniden eğitilir.
    Eğitim sürerken etiketlemeye devam edebilirsin.
@@ -98,7 +125,7 @@ Kare türleri: T = test, – = tampon, D = denetim (rastgele seçilir, model ön
 
 W: tek kutu çiz (LabelImg gibi; kutu bitince düzenleme moduna döner) · S: düzenle modu · Q / E: önceki / sonraki sınıf
 X: kılavuz çizgileri (imleçten resmin iki ucuna uzanan çizgiler) · C: model adayları · D: kaydet + sonraki
-B: büyüteç · Ok tuşları: seçili kutuyu 1 piksel kaydır (Shift: 10) · Alt + ok: sağ / alt kenarı büyüt-küçült
+Ok tuşları: seçili kutuyu 1 piksel kaydır (Shift: 10) · Alt + ok: sağ / alt kenarı büyüt-küçült
 Tab / Shift + Tab: kutular arasında gez (imleç üst üste kutuların üstündeyse yalnızca onlar arasında)
 
 ## Ayar komutu ve kopyalama

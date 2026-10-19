@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Etiketleyici v3.6</title>
+<title>Etiketleyici v3.7</title>
 <style>
   :root {
     --bg: #E6E9EC; --panel: #F6F7F8; --line: #CBD2D8; --text: #1C232A; --muted: #5B6670;
@@ -36,13 +36,13 @@
   }
   header h1 { font-size: 15px; margin: 0; font-weight: 650; letter-spacing: .01em; }
   #fname { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 30vw; }
-  #progress { font-variant-numeric: tabular-nums; }
+  #progress { font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--muted); }
   .spacer { flex: 1; }
   .modes { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-  .modes button { border: 0; background: transparent; padding: 6px 12px; cursor: pointer; }
+  .modes button { border: 0; background: transparent; padding: 6px 12px; cursor: pointer; white-space: nowrap; }
   .modes button.on { background: var(--accent); color: #1C232A; font-weight: 600; }
   #hint { color: var(--muted); font-size: 13px; white-space: nowrap; }
-  #saveState { font-size: 13px; color: var(--muted); min-width: 92px; text-align: right; }
+  #saveState { font-size: 13px; color: var(--muted); min-width: 92px; text-align: right; white-space: nowrap; }
   #saveState.dirty { color: var(--accent); }
 
   #sol { display: flex; flex-direction: column; min-height: 0; background: var(--panel); border-right: 1px solid var(--line); }
@@ -62,8 +62,8 @@
   .item.cur .n { color: #1C232A; }
 
   #stage { position: relative; background: var(--stage); overflow: hidden; }
-  /* v3.6: üç katman. Alt: resim (yalnızca yakınlaştırma/kaydırmada yeniden çizilir), orta: kutular ve fare olayları,
-     üst: kılavuz çizgileri ve büyüteç (fare her kıpırdadığında yalnızca bu katman çizilir). */
+  /* Üç katman. Alt: resim (yalnızca yakınlaştırma/kaydırmada yeniden çizilir), orta: kutular ve fare olayları,
+     üst: kılavuz çizgileri (fare her kıpırdadığında yalnızca bu katman çizilir). v3.7: büyüteç kaldırıldı. */
   #cvImg, #cv, #cvUst { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
   #cv { cursor: crosshair; user-select: none; }
   #cvUst { pointer-events: none; }
@@ -112,6 +112,20 @@
     font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line);
     border-radius: 6px; padding: 5px 7px; width: 100%;
   }
+  /* v3.7: sol menü yalnızca üç kategori gösterir */
+  .kategoriler { display: grid; gap: 2px; }
+  .kategoriler button {
+    display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; cursor: pointer;
+    border: 1px solid transparent; background: none; border-radius: 6px; padding: 6px 8px;
+    font-size: 12.5px; font-weight: 650; letter-spacing: .03em;
+  }
+  .kategoriler button:hover { border-color: var(--line); }
+  .kategoriler button.on { border-color: var(--accent); background: var(--accent-soft); }
+  .kategoriler b { margin-left: auto; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .kategoriler button.on b { color: var(--text); }
+  .dot.oneri { background: var(--accent); border-color: var(--accent); }
+  #bOnay { white-space: nowrap; }
+  #bOnay kbd { font: inherit; font-size: 11px; opacity: .75; margin-left: 4px; }
   .rozet { font-size: 10.5px; font-weight: 700; border-radius: 4px; padding: 0 4px; line-height: 16px; flex: none; }
   .rozet.t { background: #4FA3E0; color: #0F1A24; }
   .rozet.d { background: #E0587A; color: #24101A; }
@@ -200,7 +214,7 @@
 </head>
 <body>
 <header>
-  <h1>Etiketleyici <small style="font-weight:400;color:var(--muted)">v3.6</small></h1>
+  <h1>Etiketleyici <small style="font-weight:400;color:var(--muted)">v3.7</small></h1>
   <span id="fname"></span>
   <span id="progress"></span>
   <span class="spacer"></span>
@@ -210,28 +224,24 @@
     <button id="mDraw" title="W">Sadece çiz</button>
   </div>
   <span id="saveState">Kaydedildi</span>
+  <button id="bOnay" class="btn ana" title="Kutuları kaydet (model önerisini onaylar) ve listedeki sonraki kareye geç">✓ Onayla · sonraki<kbd>D</kbd></button>
 </header>
 
 <nav id="sol" aria-label="Görüntüler">
   <div class="solust">
-    <select id="gorunum" aria-label="Liste görünümü">
-      <option value="kuyruk">Öneri sırası (etiketlenecekler)</option>
-      <option value="tum">Tüm kareler (zaman sırası)</option>
-      <option value="etiketli">Etiketliler (senin)</option>
-      <option value="model">Kontrol bekleyenler (M)</option>
-      <option value="etiketsiz">Etiketsizler</option>
-      <option value="test">Test seti</option>
-    </select>
+    <div class="kategoriler" role="tablist" aria-label="Görüntü listesi">
+      <button role="tab" data-liste="oneri" title="Modelin kutu önerdiği kareler: en kararsız olan en üstte"><span class="dot oneri"></span>MODEL ÖNERDİ<b id="say-oneri">0</b></button>
+      <button role="tab" data-liste="etiketsiz" title="Henüz etiketi ve model önerisi olmayan kareler"><span class="dot"></span>ETİKETSİZ<b id="say-etiketsiz">0</b></button>
+      <button role="tab" data-liste="onay" title="Senin etiketlediğin ya da onayladığın kareler"><span class="dot done"></span>ONAYLANDI<b id="say-onay">0</b></button>
+    </div>
     <div id="gorunumBilgi" class="kucuk"></div>
   </div>
   <div id="list"></div>
   <div class="simgeler kucuk" id="simgeler">
-    <span title="Senin etiketlediğin ya da onayladığın kare">● senin etiketin</span> ·
-    <span title="Henüz etiketi yok">○ etiketsiz</span><br>
-    <span class="rozet m">M</span> model etiketledi, kontrol bekliyor: aç, düzelt, D ile onayla<br>
-    <span class="rozet t">T</span> test karesi (sadece ölçüm) ·
+    <span class="rozet m">M</span> model etiketledi, D ile onayla ·
+    <span class="rozet t">T</span> test karesi ·
     <span class="rozet d">D</span> denetim (öneri gizli) ·
-    <span class="rozet p">–</span> tampon (kullanılmaz)
+    <span class="rozet p">–</span> tampon
   </div>
 </nav>
 
@@ -280,7 +290,6 @@
         <dt>Ok tuşları</dt><dd>Seçili kutuyu 1 piksel kaydır (Shift ile 10 piksel)</dd>
         <dt>Alt + ok</dt><dd>Seçili kutunun sağ / alt kenarını büyüt ya da küçült (Shift ile 10 piksel)</dd>
         <dt>Tab</dt><dd>Kutular arasında sırayla gez (Shift + Tab geri). İmleç üst üste binmiş kutuların üstündeyse yalnızca onlar arasında gezer</dd>
-        <dt>B</dt><dd>Büyüteci aç / kapat: köşe tutarken ve çizerken imlecin yanında büyütülmüş görüntü çıkar</dd>
         <dt>Ctrl + S</dt><dd>Kaydet (boş görüntüyü “nesne yok” diye işaretler)</dd>
         <dt>Ctrl + Z</dt><dd>Geri al</dd>
         <dt>Tekerlek</dt><dd>Yakınlaştır</dd>
@@ -317,6 +326,7 @@
     <section>
       <h2>İnsan emeği</h2>
       <div id="mdEmek" class="kucuk"></div>
+      <div class="kucuk" style="margin-top:4px">Kutu kutu ayrıntı (eklenen, silinen, taşınan, boyutu ya da sınıfı değişen): <a href="/api/davranis.csv" download>davranış kaydı CSV</a></div>
     </section>
     <section>
       <h2>Adımlar</h2>
@@ -387,14 +397,20 @@ const cv = $('#cv'), ctx = cv.getContext('2d');
 const cvImg = $('#cvImg'), ctxImg = cvImg.getContext('2d'), cvUst = $('#cvUst'), ctxUst = cvUst.getContext('2d');
 const HR = 7;          // tutamak yakalama yarıçapı (ekran pikseli)
 const DRAG_MIN = 3;    // bu kadar ekran pikselinden az hareket = tıklama sayılır
+const BOSTA_SINIR_MS = 30000;   // emek ölçümü: bundan uzun boşluk "başka işle uğraştı" sayılır, süreye eklenmez
+const OK_GRUP_MS = 800;         // ok tuşuna bu kadar ms içinde art arda basışlar tek geri alma adımı ve tek işlem sayılır
+const OTURUM = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);   // davranış kaydında sayfa oturumu
+/* v3.7: sol menü yalnızca üç kategori gösterir. v3.6'nın liste adları (localStorage'da kalmış olabilir) eşlenir. */
+const LISTELER = { oneri: 'MODEL ÖNERDİ', etiketsiz: 'ETİKETSİZ', onay: 'ONAYLANDI' };
+const ESKI_LISTE = { kuyruk: 'oneri', model: 'oneri', etiketli: 'onay', etiketsiz: 'etiketsiz', test: 'etiketsiz', tum: 'etiketsiz' };
 
 const S = {
   images: [], idx: -1, classes: [], boxes: [], cls: 0, sel: -1,
   dirty: false, pre: false, mode: 'edit', img: null, view: { s: 1, x: 0, y: 0 },
   op: null, pan: null, space: false, undo: [], loadToken: 0,
-  liste: 'kuyruk', order: [], kuyruk: null, adaylar: [], showCand: false, arti: true, fare: null, tekCizim: false, emek: null,
+  liste: 'oneri', order: [], kuyruk: null, adaylar: [], showCand: false, arti: true, fare: null, tekCizim: false, emek: null,
   rol: 'havuz', denetim: false, tahminTurGoruntu: null, durum: null, tahminTur: undefined,
-  buyutec: true, gorselAnahtar: null, okGrup: null,
+  gorselAnahtar: null, okGrup: null,
 };
 const byName = new Map();
 /* S.op = süren fare işlemi: draw | move | resize.  Kutuda m alanı varsa kutu modelden gelmiştir (m = güven). */
@@ -510,37 +526,39 @@ function kisaAdlar() {
 
 async function init() {
   await bilgiYukle();
+  let kayitliListe = null;
   try {
-    S.liste = localStorage.getItem('etiketleyici_liste') || 'kuyruk';
+    kayitliListe = localStorage.getItem('etiketleyici_liste');
     S.arti = localStorage.getItem('etiketleyici_arti') !== '0';
-    S.buyutec = localStorage.getItem('etiketleyici_buyutec') !== '0';
   } catch (e) { /* yok say */ }
-  $('#gorunum').value = S.liste;
   setMode('edit');
   if (!S.images.length) { $('#empty').hidden = false; setTimeout(durumDongu, 2000); return; }
   await durumAl();
   await kuyrukYukle(false);
+  S.liste = baslangicListesi(kayitliListe);
   listeKur();
-  const ilk = S.order.find(i => !S.images[i].labeled) ?? S.images.findIndex(im => !im.labeled);
-  await load(ilk >= 0 ? ilk : 0);
+  await load(siradaki(+1) ?? S.order[0] ?? 0);
   setTimeout(durumDongu, 2000);
 }
 
 async function save() {
   if (S.idx < 0) return;
   const w = W(), h = H();
-  const boxes = S.boxes.map(b => ({
-    cls: b.cls, cx: (b.x1 + b.x2) / 2 / w, cy: (b.y1 + b.y2) / 2 / h, w: (b.x2 - b.x1) / w, h: (b.y2 - b.y1) / h,
-  }));
+  const boxes = S.boxes.map(b => yoloKutu(b, w, h));
   const name = S.images[S.idx].name;
   emekTik();
-  const em = S.emek;
-  const emek = em ? { sure_sn: Math.round(em.sure / 100) / 10, eklenen: em.eklenen, silinen: em.silinen, duzeltilen: em.duzeltilen,
+  const em = S.emek, sure_sn = em ? Math.round(em.sure / 100) / 10 : 0;
+  // emek: v3.6 özeti (emek.jsonl) için; davranis: v3.7 ayrıntılı kayıt (davranis.jsonl, bkz. davranis.py)
+  const emek = em ? { sure_sn, eklenen: em.eklenen, silinen: em.silinen, duzeltilen: em.tasinan + em.boyut,
                       sinif_degisen: em.sinif, kaynak: em.kaynak, ilk_kutu: em.ilk } : undefined;
-  await api('/api/labels/' + encodeURIComponent(name), { boxes, emek });
-  if (em) Object.assign(em, { sure: 0, eklenen: 0, silinen: 0, duzeltilen: 0, sinif: 0, ilk: boxes.length, kaynak: 'duzenleme' });
+  const davranis = em ? { oturum: OTURUM, liste: S.liste, kaynak: em.kaynak, rol: S.rol, tahmin_tur: S.tahminTurGoruntu ?? null, sure_sn,
+                          islem: { eklenen: em.eklenen, aday_eklenen: em.aday, silinen: em.silinen, tasinan: em.tasinan,
+                                   boyut: em.boyut, sinif_degisen: em.sinif, geri_al: em.geri },
+                          ilk: em.ilkKutular } : undefined;
+  await api('/api/labels/' + encodeURIComponent(name), { boxes, emek, davranis });
   Object.assign(S.images[S.idx], { labeled: true, count: boxes.length, model: false });
   S.boxes.forEach(b => { delete b.m; });
+  if (em) emekBaslat('duzenleme');   // aynı karede sonraki düzeltmeler kaydedilen hâle göre ölçülür
   S.pre = false;
   setDirty(false); renderList(false); renderBoxes(); bannerGuncelle(); draw();
 }
@@ -576,8 +594,7 @@ async function load(i, onay = false) {
     S.boxes = []; S.pre = false;
   }
   S.adaylar = lab.aday.map(k => ({ x1: k[0], y1: k[1], x2: k[2], y2: k[3], cls: k[4], s: k[5] }));
-  S.emek = { son: performance.now(), sure: 0, eklenen: 0, silinen: 0, duzeltilen: 0, sinif: 0, ilk: S.boxes.length,
-             kaynak: lab.model ? 'model' : lab.labeled ? 'duzenleme' : (S.pre ? 'oneri' : 'elle') };
+  emekBaslat(lab.model ? 'model' : lab.labeled ? 'duzenleme' : (S.pre ? 'oneri' : 'elle'));
   S.images[i].labeled = lab.labeled; S.images[i].model = !!lab.model;
   setDirty(false);
   $('#fname').textContent = `${name}  (${w}×${h})`;
@@ -590,24 +607,62 @@ async function load(i, onay = false) {
 /* ---------------- liste ve sıra ---------------- */
 async function kuyrukYukle(yenidenCiz = true) {
   try { S.kuyruk = await api('/api/kuyruk'); } catch (e) { return; }
-  if (yenidenCiz && S.liste === 'kuyruk') listeKur();
+  if (yenidenCiz) listeKur();   // öneri sırası değişince kategoriler de değişir (etiketsiz → model önerdi)
 }
+/* v3.7: her kare tek bir kategoridedir. Test, tampon, denetim ve öncelik sistemde aynen çalışır; yalnızca ayrı liste
+   olarak gösterilmez (T / D / – rozetleri ve kare üstündeki şerit durumu anlatır). Tampon kareler hiç kullanılmadığı
+   için iş listelerinde yer almaz. */
+const oneriKumesi = () => new Set(S.kuyruk && !S.kuyruk.tohum ? S.kuyruk.adlar : []);
+function kategori(im, oneri) {
+  if (im.labeled && !im.model) return 'onay';
+  if (im.model || oneri.has(im.name)) return 'oneri';
+  return im.rol === 'tampon' ? null : 'etiketsiz';
+}
+function kategoriSayilari() {
+  const oneri = oneriKumesi(), say = { oneri: 0, etiketsiz: 0, onay: 0 };
+  for (const im of S.images) { const k = kategori(im, oneri); if (k) say[k]++; }
+  return say;
+}
+/* Önce "once" listesindekiler (verilen sırayla), sonra geri kalanlar (zaman sırasıyla) */
+function onceSonra(once, tum) { const ilk = new Set(once); return [...ilk, ...tum.filter(i => !ilk.has(i))]; }
 function listeKur() {
-  const filtre = { etiketli: im => im.labeled && !im.model, model: im => im.labeled && im.model, etiketsiz: im => !im.labeled }[S.liste];
-  if (filtre) S.order = S.images.map((im, i) => filtre(im) ? i : -1).filter(i => i >= 0);
-  else if (S.liste === 'tum') S.order = S.images.map((_, i) => i);
-  else if (S.liste === 'test') S.order = S.images.map((im, i) => im.rol === 'test' ? i : -1).filter(i => i >= 0);
-  else S.order = (S.kuyruk?.adlar || []).map(n => byName.get(n)).filter(i => i !== undefined);
+  const oneri = oneriKumesi(), uye = i => kategori(S.images[i], oneri) === S.liste;
+  const adlardan = adlar => (adlar || []).map(n => byName.get(n)).filter(i => i !== undefined && uye(i));
+  const zaman = S.images.map((_, i) => i).filter(uye);
+  if (S.liste === 'oneri') {
+    // Sunucunun öneri sırası (aktif öğrenme önceliği, denetim kareleri serpiştirilmiş); sırada olmayan M kareleri sonda
+    S.order = onceSonra(adlardan(S.kuyruk?.adlar), zaman);
+  } else if (S.liste === 'etiketsiz') {
+    // Önce test kareleri (eğitim onlar etiketlenince başlar), sonra tohum kareleri (ilk model onlarla eğitilir)
+    const test = zaman.filter(i => S.images[i].rol === 'test');
+    S.order = onceSonra(test.concat(S.kuyruk?.tohum ? adlardan(S.kuyruk.adlar) : []), zaman);
+  } else S.order = zaman;
+  document.querySelectorAll('.kategoriler button').forEach(b => {
+    b.classList.toggle('on', b.dataset.liste === S.liste); b.setAttribute('aria-selected', b.dataset.liste === S.liste);
+  });
   renderList(true);
+}
+function baslangicListesi(kayitli) {
+  const k = LISTELER[kayitli] ? kayitli : ESKI_LISTE[kayitli], say = kategoriSayilari();
+  if (k === 'onay' || (k && say[k])) return k;
+  return say.oneri ? 'oneri' : 'etiketsiz';
+}
+async function listeSec(ad) {
+  S.liste = ad;
+  try { localStorage.setItem('etiketleyici_liste', ad); } catch (err) { /* yok say */ }
+  listeKur();
+  // Açık kare bu listede değilse listenin ilk karesini aç (kategori + kare için iki tık yerine bir tık)
+  if (!S.order.includes(S.idx)) { const j = siradaki(+1) ?? S.order[0]; if (j !== undefined && j !== null) await load(j); }
 }
 function siradaki(yon) {
   const ord = S.order;
   if (!ord.length) return null;
   const pos = ord.indexOf(S.idx);
   if (yon > 0) {
+    // İş listelerinde (model önerdi, etiketsiz) bu arada onaylanan kareler atlanır
+    const oneri = oneriKumesi();
     for (let p = pos + 1; p < ord.length; p++) {
-      const im = S.images[ord[p]];
-      if (S.liste !== 'kuyruk' || !im.labeled || im.model) return ord[p];
+      if (S.liste === 'onay' || kategori(S.images[ord[p]], oneri) === S.liste) return ord[p];
     }
     return null;
   }
@@ -616,15 +671,19 @@ function siradaki(yon) {
 }
 async function git(yon) {
   const j = siradaki(yon);
-  if (j === null) {
-    if (yon > 0 && S.idx >= 0 && (S.dirty || S.pre)) {
-      try { await save(); } catch (e) { toast('Kaydedilemedi: ' + e.message); return; }
-    }
-    if (yon < 0) toast('Listenin başındasın.');
-    else toast(S.liste === 'kuyruk' ? 'Bu listede etiketlenecek kare kalmadı.' : 'Listenin sonundasın, kaydedildi.');
+  if (j !== null) { await load(j, yon > 0); return; }
+  if (yon > 0 && S.idx >= 0 && (S.dirty || S.pre)) {
+    try { await save(); } catch (e) { toast('Kaydedilemedi: ' + e.message); return; }
+  }
+  if (yon < 0) { toast('Listenin başındasın.'); return; }
+  // v3.7: iş listesi bitince öteki iş listesine kendiliğinden geç
+  const eski = S.liste, diger = { oneri: 'etiketsiz', etiketsiz: 'oneri' }[eski];
+  if (diger && kategoriSayilari()[diger]) {
+    await listeSec(diger);
+    toast(`${LISTELER[eski]} listesi bitti; ${LISTELER[diger]} listesine geçildi.`, 3500);
     return;
   }
-  await load(j, yon > 0);
+  toast(eski === 'onay' ? 'Listenin sonundasın, kaydedildi.' : 'Etiketlenecek kare kalmadı. Hepsi onaylandı.');
 }
 
 /* ---------------- görünüm ---------------- */
@@ -713,7 +772,7 @@ function kutuCiz() {
   }
 }
 
-/* Üst katman: kılavuz çizgileri (LabelImg gibi) ve büyüteç. Fare hareketinde yalnızca bu çizilir. */
+/* Üst katman: kılavuz çizgileri (LabelImg gibi). Fare hareketinde yalnızca bu çizilir. */
 function ustCiz() {
   const dpr = window.devicePixelRatio || 1;
   ctxUst.setTransform(1, 0, 0, 1, 0, 0);
@@ -732,45 +791,6 @@ function ustCiz() {
       }
     }
   }
-  if (S.buyutec && S.op && (S.op.type === 'resize' || S.op.type === 'draw')) buyutecCiz(fx, fy);
-}
-
-/* Büyüteç: köşe tutarken ve yeni kutu çizerken imlecin çevresini büyütülmüş gösterir; kenarı piksel piksel
-   oturtmak için. Büyütme ekrandaki ölçeğin 4 katıdır (en az 1,5, en çok 16 ekran pikseli = 1 resim pikseli). */
-function buyutecCiz(fx, fy) {
-  const L = 176, kat = clamp(S.view.s * 4, 1.5, 16), c = ctxUst, r = cv.getBoundingClientRect();
-  let ox = fx + 26, oy = fy + 26;
-  if (ox + L > r.width - 4) ox = fx - 26 - L;
-  if (oy + L > r.height - 4) oy = fy - 26 - L;
-  ox = clamp(ox, 4, Math.max(4, r.width - L - 4)); oy = clamp(oy, 4, Math.max(4, r.height - L - 4));
-  const ix = (fx - S.view.x) / S.view.s, iy = (fy - S.view.y) / S.view.s, yar = L / 2 / kat;
-  const B = (x, y) => [ox + (x - ix + yar) * kat, oy + (y - iy + yar) * kat];
-  c.save();
-  c.beginPath(); c.rect(ox, oy, L, L); c.clip();
-  c.fillStyle = '#0D1013'; c.fillRect(ox, oy, L, L);
-  c.imageSmoothingEnabled = kat < 3;
-  c.drawImage(S.img, ix - yar, iy - yar, 2 * yar, 2 * yar, ox, oy, L, L);
-  const kutu = (x1, y1, x2, y2, renk, kal, kesik) => {
-    const [a, b] = B(x1, y1), [d, e] = B(x2, y2);
-    c.setLineDash(kesik ? [5, 3] : []); c.strokeStyle = renk; c.lineWidth = kal; c.strokeRect(a, b, d - a, e - b);
-  };
-  S.boxes.forEach((b, i) => kutu(b.x1, b.y1, b.x2, b.y2, color(b.cls), S.op.type === 'resize' && i === S.op.i ? 2 : 1, b.m !== undefined));
-  if (S.op.type === 'draw') kutu(Math.min(S.op.x0, S.op.x1), Math.min(S.op.y0, S.op.y1), Math.max(S.op.x0, S.op.x1), Math.max(S.op.y0, S.op.y1), color(S.cls), 2, true);
-  c.setLineDash([]);
-  const m = L / 2;
-  for (const [renk, kal] of [['rgba(0,0,0,.6)', 3], ['rgba(255,255,255,.95)', 1]]) {
-    c.strokeStyle = renk; c.lineWidth = kal; c.beginPath();
-    c.moveTo(ox + m - 12, oy + m + .5); c.lineTo(ox + m - 3, oy + m + .5); c.moveTo(ox + m + 3, oy + m + .5); c.lineTo(ox + m + 12, oy + m + .5);
-    c.moveTo(ox + m + .5, oy + m - 12); c.lineTo(ox + m + .5, oy + m - 3); c.moveTo(ox + m + .5, oy + m + 3); c.lineTo(ox + m + .5, oy + m + 12);
-    c.stroke();
-  }
-  c.font = '600 11px system-ui, sans-serif'; c.textBaseline = 'alphabetic';
-  const yazi = `${(kat / S.view.s).toFixed(0)}× · ${Math.round(ix)}, ${Math.round(iy)}`;
-  c.fillStyle = 'rgba(13,16,19,.75)'; c.fillRect(ox, oy + L - 18, c.measureText(yazi).width + 10, 18);
-  c.fillStyle = '#E3E7EB'; c.fillText(yazi, ox + 5, oy + L - 5);
-  c.restore();
-  c.strokeStyle = 'rgba(0,0,0,.6)'; c.lineWidth = 3; c.strokeRect(ox, oy, L, L);
-  c.strokeStyle = '#fff'; c.lineWidth = 1; c.strokeRect(ox, oy, L, L);
 }
 
 function bannerGuncelle() {
@@ -814,10 +834,10 @@ function renderBoxes() {
 }
 function renderList(scroll) {
   const el = $('#list'); el.innerHTML = '';
-  const mod = S.images.filter(i => i.labeled && i.model).length;
-  const done = S.images.filter(i => i.labeled && !i.model).length;
-  $('#progress').textContent = `${S.images.length} fotoğraf · ${done} etiketli · ${S.images.length - done - mod} etiketsiz`
-    + (mod ? ` · ${mod} model etiketi (kontrol bekliyor)` : '');
+  const say = kategoriSayilari();
+  for (const k in say) $('#say-' + k).textContent = say[k];
+  // Kategori sayıları sol menüde; başlıkta yalnızca genel ilerleme
+  $('#progress').textContent = `${S.images.length} fotoğraf · %${Math.round(100 * say.onay / Math.max(1, S.images.length))} onaylandı`;
   const den = new Set(S.kuyruk?.denetim || []), skor = S.kuyruk?.skor || {};
   const frag = document.createDocumentFragment();
   let curEl = null;
@@ -831,7 +851,7 @@ function renderList(scroll) {
     else if (den.has(im.name)) rozet = '<span class="rozet d" title="Denetim karesi">D</span>';
     if (im.labeled && im.model) rozet += '<span class="rozet m" title="Model etiketledi, henüz kontrol edilmedi">M</span>';
     let sag = im.labeled ? im.count : '', puan = null;
-    if ((!im.labeled || im.model) && S.liste === 'kuyruk' && skor[im.name] !== undefined) { puan = skor[im.name]; sag = fmt(puan); }
+    if ((!im.labeled || im.model) && S.liste === 'oneri' && skor[im.name] !== undefined) { puan = skor[im.name]; sag = fmt(puan); }
     d.innerHTML = `<span class="dot${im.labeled && !im.model ? ' done' : ''}"></span><span></span>${rozet}`
       + (puan !== null ? `<span class="n puan" style="--p:${clamp(puan, 0, 1)}">${sag}</span>` : `<span class="n">${sag}</span>`);
     d.children[1].textContent = im.kisa || im.name;
@@ -850,15 +870,17 @@ function renderList(scroll) {
   gorunumBilgi();
 }
 function gorunumBilgi() {
-  const el = $('#gorunumBilgi');
-  const say = S.order.length, et = S.order.filter(i => S.images[i].labeled).length;
-  if (S.liste === 'tum') el.textContent = `${say} fotoğraf: ${et} etiketli, ${say - et} etiketsiz. T = test, – = tampon (kullanılmaz), M = model etiketi.`;
-  else if (S.liste === 'test') el.textContent = say ? `Test seti: ${et}/${say} etiketli. Eğitime girmez, sadece ölçüm için.` : 'Test seti yok.';
-  else if (S.liste === 'etiketli') el.textContent = `Senin etiketlediğin ya da onayladığın ${say} kare (zaman sırası).`;
-  else if (S.liste === 'model') el.textContent = say ? `${say} kare model tarafından etiketlendi ve kontrolünü bekliyor. Aç, düzelt, D ile onayla.` : 'Kontrol bekleyen kare yok.';
-  else if (S.liste === 'etiketsiz') el.textContent = `${say} karenin hiç etiketi yok.`;
-  else if (S.kuyruk?.tohum) el.textContent = `Tohum kareleri: ${et}/${say} etiketli. Eşit aralıklarla seçildi, elle etiketle.`;
-  else el.textContent = `Tur ${S.kuyruk?.tur} önerileri · ${S.durum?.ayarlar?.secim === 'rastgele' ? 'rastgele sıra' : 'en kararsız önce'} · ${say - et} etiketsiz. D = denetim. Sağdaki sayı öncelik puanı (0–1): yüksek = model o karede kararsız. Üstüne gelince hesabı görünür.`;
+  const el = $('#gorunumBilgi'), oneri = oneriKumesi(), s = S.durum?.sayac;
+  const kalan = S.order.filter(i => kategori(S.images[i], oneri) === S.liste).length;
+  if (S.liste === 'onay') el.textContent = `Senin etiketlediğin ya da onayladığın ${kalan} kare. Açıp düzeltebilirsin.`;
+  else if (S.liste === 'oneri') {
+    if (S.kuyruk && !S.kuyruk.tohum) el.textContent = `${kalan} kare kontrol bekliyor · ${S.durum?.ayarlar?.secim === 'rastgele' ? 'rastgele sıra' : 'modelin en kararsız olduğu kare en üstte'}. Kutuları düzelt, D ile onayla.`;
+    else el.textContent = kalan ? `${kalan} model etiketi kontrol bekliyor. Aç, düzelt, D ile onayla.`
+      : `Henüz model yok.${s ? ` İlk model ${s.sonraki_kalan} kare sonra eğitilir;` : ''} şimdilik ETİKETSİZ listesinden ilerle.`;
+  } else if (S.order.some(i => S.images[i].rol === 'test' && !S.images[i].labeled)) {
+    el.textContent = `${kalan} kare. Önce T işaretli test karelerini dikkatle, elle etiketle: eğitime girmezler, başarıyı ölçerler.`;
+  } else if (S.kuyruk?.tohum) el.textContent = `${kalan} kare. Üstteki kareler eşit aralıklarla seçildi (tohum): elle etiketle, ilk model onlarla eğitilir.`;
+  else el.textContent = `${kalan} karenin etiketi de model önerisi de yok.`;
 }
 
 /* ---------------- işlemler ---------------- */
@@ -868,14 +890,14 @@ function setClass(i) {
   S.cls = i;
   if (S.sel >= 0 && S.boxes[S.sel] && (S.boxes[S.sel].cls !== i || S.boxes[S.sel].m !== undefined)) {
     pushUndo(); S.boxes[S.sel].cls = i; delete S.boxes[S.sel].m; setDirty(true); renderBoxes();
-    if (S.emek) S.emek.sinif++;
+    emekSay('sinif');
   }
   renderClasses(); draw();
 }
 function removeBox(i) {
   if (i < 0 || !S.boxes[i]) return;
   pushUndo(); S.boxes.splice(i, 1); S.sel = -1;
-  if (S.emek) S.emek.silinen++;
+  emekSay('silinen');
   setDirty(true); renderBoxes(); draw();
 }
 function setMode(m) {
@@ -897,11 +919,21 @@ cv.addEventListener('contextmenu', e => e.preventDefault());
 cv.addEventListener('mouseleave', () => { if (!S.op) { S.fare = null; ustCiz(); } });
 function cizIste() { if (!S.cizBekliyor) { S.cizBekliyor = true; requestAnimationFrame(() => { S.cizBekliyor = false; draw(); }); } }
 function ustIste() { if (!S.ustBekliyor) { S.ustBekliyor = true; requestAnimationFrame(() => { S.ustBekliyor = false; ustCiz(); }); } }
-/* Emek ölçümü: karede geçen etkin süre (30 sn'den uzun boşluklar sayılmaz) ve yapılan düzeltmeler */
+/* Emek ölçümü ve davranış kaydı: karede geçen etkin süre (BOSTA_SINIR_MS'den uzun boşluklar sayılmaz), yapılan
+   işlemler ve açılıştaki kutular. Sunucu kaydederken açılıştaki kutuları son kutularla karşılaştırır (davranis.py). */
+function yoloKutu(b, w = W(), h = H()) {
+  return { cls: b.cls, cx: (b.x1 + b.x2) / 2 / w, cy: (b.y1 + b.y2) / 2 / h, w: (b.x2 - b.x1) / w, h: (b.y2 - b.y1) / h };
+}
+function emekBaslat(kaynak) {
+  S.emek = { son: performance.now(), sure: 0, eklenen: 0, aday: 0, silinen: 0, tasinan: 0, boyut: 0, sinif: 0, geri: 0,
+             ilk: S.boxes.length, kaynak,
+             ilkKutular: S.boxes.map(b => b.m !== undefined ? { ...yoloKutu(b), m: b.m } : yoloKutu(b)) };
+}
+function emekSay(alan) { if (S.emek) S.emek[alan]++; }
 function emekTik() {
   if (!S.emek) return;
   const simdi = performance.now();
-  S.emek.sure += Math.min(simdi - S.emek.son, 30000); S.emek.son = simdi;
+  S.emek.sure += Math.min(simdi - S.emek.son, BOSTA_SINIR_MS); S.emek.son = simdi;
 }
 cv.addEventListener('mousedown', e => {
   if (!S.img) return;
@@ -984,7 +1016,7 @@ window.addEventListener('mouseup', () => {
       if (hit >= 0) { select(hit); return; }
       const a = S.mode === 'edit' ? adayBul(p0) : null;
       if (a) {
-        if (S.emek) S.emek.eklenen++;
+        emekSay('eklenen'); emekSay('aday');
         pushUndo(); S.boxes.push({ cls: a.cls, x1: a.x1, y1: a.y1, x2: a.x2, y2: a.y2, m: a.s });
         setDirty(true); select(S.boxes.length - 1);
         toast(`Model adayı eklendi: ${S.classes[a.cls]} (güven ${a.s.toFixed(2)}). Yanlışsa Delete.`);
@@ -993,7 +1025,7 @@ window.addEventListener('mouseup', () => {
       select(-1); return;
     }
     pushUndo(); S.boxes.push({ cls: S.cls, x1, y1, x2, y2 });
-    if (S.emek) S.emek.eklenen++;
+    emekSay('eklenen');
     if (S.tekCizim) { S.tekCizim = false; setMode('edit'); }
     setDirty(true); select(S.boxes.length - 1); return;
   }
@@ -1001,7 +1033,7 @@ window.addEventListener('mouseup', () => {
     const b = S.boxes[op.i];
     if (b.x2 - b.x1 < 1 || b.y2 - b.y1 < 1) {
       S.boxes[op.i] = { ...op.orig }; toast('Kutu çok küçüldü, geri alındı.');
-    } else { delete b.m; pushUndo(op.snap); setDirty(true); if (S.emek) S.emek.duzeltilen++; }
+    } else { delete b.m; pushUndo(op.snap); setDirty(true); emekSay(op.type === 'resize' ? 'boyut' : 'tasinan'); }
   }
   renderBoxes(); draw();
 });
@@ -1033,11 +1065,11 @@ function kutuOkla([dx, dy], adim, boyut) {
   const b = S.boxes[S.sel];
   if (!b || !S.img) return;
   const simdi = performance.now();
-  if (!S.okGrup || S.okGrup.i !== S.sel || simdi - S.okGrup.t > 800) {
+  if (!S.okGrup || S.okGrup.i !== S.sel || S.okGrup.boyut !== boyut || simdi - S.okGrup.t > OK_GRUP_MS) {
     pushUndo();
-    if (S.emek) S.emek.duzeltilen++;
+    emekSay(boyut ? 'boyut' : 'tasinan');
   }
-  S.okGrup = { i: S.sel, t: simdi };
+  S.okGrup = { i: S.sel, t: simdi, boyut };
   if (boyut) {
     if (dx) b.x2 = clamp(b.x2 + dx * adim, b.x1 + 1, W());
     if (dy) b.y2 = clamp(b.y2 + dy * adim, b.y1 + 1, H());
@@ -1099,7 +1131,7 @@ window.addEventListener('keydown', async e => {
   if ((e.ctrlKey || e.metaKey) && k === 'z') {
     e.preventDefault();
     if (S.op) { cancelOp(); return; }
-    if (S.undo.length) { S.boxes = JSON.parse(S.undo.pop()); S.sel = -1; setDirty(true); renderBoxes(); draw(); }
+    if (S.undo.length) { S.boxes = JSON.parse(S.undo.pop()); S.sel = -1; emekSay('geri'); setDirty(true); renderBoxes(); draw(); }
     return;
   }
   if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -1118,11 +1150,6 @@ window.addEventListener('keydown', async e => {
     setClass((S.cls + (k === 'e' ? 1 : n - 1)) % n); toast(`Sınıf: ${S.classes[S.cls]}`, 900); return;
   }
   if (k === 'x') { S.arti = !S.arti; try { localStorage.setItem('etiketleyici_arti', S.arti ? '1' : '0'); } catch (err) { /* yok say */ } draw(); toast(S.arti ? 'Kılavuz çizgileri açık' : 'Kılavuz çizgileri kapalı', 1000); return; }
-  if (k === 'b') {
-    S.buyutec = !S.buyutec;
-    try { localStorage.setItem('etiketleyici_buyutec', S.buyutec ? '1' : '0'); } catch (err) { /* yok say */ }
-    toast(S.buyutec ? 'Büyüteç açık (köşe tutarken ve çizerken görünür)' : 'Büyüteç kapalı', 1400); return;
-  }
   if (k === 'c') { S.showCand = !S.showCand; toast(S.showCand ? `Model adayları gösteriliyor (${S.adaylar.length})` : 'Adaylar gizlendi'); draw(); return; }
 });
 window.addEventListener('keyup', e => { if (e.key === ' ') { S.space = false; cv.style.cursor = 'crosshair'; } });
@@ -1131,11 +1158,8 @@ window.addEventListener('resize', resize);
 
 $('#mEdit').onclick = () => { S.tekCizim = false; setMode('edit'); };
 $('#mDraw').onclick = () => { S.tekCizim = false; setMode('draw'); };
-$('#gorunum').onchange = e => {
-  S.liste = e.target.value;
-  try { localStorage.setItem('etiketleyici_liste', S.liste); } catch (err) { /* yok say */ }
-  listeKur(); e.target.blur();
-};
+document.querySelectorAll('.kategoriler button').forEach(b => { b.onclick = () => { b.blur(); listeSec(b.dataset.liste); }; });
+$('#bOnay').onclick = e => { e.currentTarget.blur(); if (!S.op) git(+1); };
 
 /* ---------------- model sekmesi ---------------- */
 function sekme(ad) {
@@ -1291,7 +1315,7 @@ function renderModel(d) {
       if (!confirm(`Model ${s.model_etiketlenebilir} kareyi etiketleyecek. Bu kareler M işaretli olacak ve kontrol edene kadar eğitimde kullanılmayacak. Devam edilsin mi?`)) return;
       try {
         const r = await api('/api/model_etiketle', {});
-        toast(`${r.sayi} kare model tarafından etiketlendi (M). Öneri sırasından kontrol edebilirsin.`, 5000);
+        toast(`${r.sayi} kare model tarafından etiketlendi (M). MODEL ÖNERDİ listesinden kontrol edebilirsin.`, 5000);
         await bilgiYukle(); await kuyrukYukle(false); listeKur(); durumAl();
       } catch (e) { toast(e.message, 5000); }
     };
@@ -1334,7 +1358,7 @@ function renderModel(d) {
   $('#mdTurlar').innerHTML = d.turlar.length
     ? `<table class="turlar"><tr><th>Tur</th><th>Kare</th><th>mAP50</th><th>50-95</th><th>Süre</th></tr>${satir}</table><div class="kucuk" style="margin-top:4px">* = sıfırdan (COCO ağırlığıyla) eğitim</div>`
     : '<div class="none">Henüz tur yok.</div>';
-  if (S.liste === 'kuyruk') gorunumBilgi();
+  gorunumBilgi();
 }
 
 /* Model sekmesinin en üstündeki sade özet: model ne durumda, en büyük sorun ne, şimdi ne yapmalı. */
@@ -1344,7 +1368,7 @@ function kisacaHtml(d, son, tamam) {
   if (is) p.push(`<p>Model eğitiliyor (tur ${is.tur}${is.ilerleme != null ? `, ${yuzde(is.ilerleme)}` : ''}). Bu sırada etiketlemeye devam edebilirsin.</p>`);
   if (!son) {
     if (!is) p.push(`<p>Henüz model yok. İlk eğitime <b>${s.sonraki_kalan}</b> etiketli kare kaldı.</p>`);
-    p.push(`<p class="yap">Şimdi: ${!d.test_onay ? 'test setini onayla.' : s.test_eksik ? `test karelerini etiketle (${s.test_etiketli}/${s.test}).` : 'öneri sırasındaki tohum karelerini etiketle.'}</p>`);
+    p.push(`<p class="yap">Şimdi: ${!d.test_onay ? 'test setini onayla.' : s.test_eksik ? `test karelerini etiketle (${s.test_etiketli}/${s.test}).` : 'ETİKETSİZ listesinin üstündeki tohum karelerini etiketle.'}</p>`);
     return p.join('');
   }
   const once = tamam.length > 1 ? tamam[tamam.length - 2] : null;
@@ -1363,10 +1387,10 @@ function kisacaHtml(d, son, tamam) {
   const tz = son.temiz;
   if (tz && son.p != null) p.push(`<p class="kucuk">Grup ve kopya kutu filtresiyle önerilerin doğruluğu (P) ${fmt(son.p)} → ${fmt(tz.p)}.</p>`);
   let yap;
-  if (s.model_etiketli > 0) yap = `“Kontrol bekleyenler (M)” listesindeki ${s.model_etiketli} kareyi aç, düzelt, D ile onayla.`;
+  if (s.model_etiketli > 0) yap = `MODEL ÖNERDİ listesindeki ${s.model_etiketli} M karesini aç, düzelt, D ile onayla.`;
   else if (enKotu && enKotu.v.p < 0.5) yap = `${ad(enKotu.k)} önerilerindeki yanlış kutuları sil; ön etiket eşiği şu an ${fmt(a.conf_on_etiket)}. En iyi eşiği Kılavuz sayfasında gör.`;
   else if (enKotu && enKotu.v.r < 0.7) yap = `${ad(enKotu.k)} için eksik kutuları çiz; model bu sınıfta nesne kaçırıyor.`;
-  else yap = 'Öneri sırasındaki ilk kareleri düzelt ve D ile onayla.';
+  else yap = 'MODEL ÖNERDİ listesindeki ilk kareleri düzelt ve D ile onayla.';
   p.push(`<p class="yap">Şimdi: ${yap}${s.sonraki_kalan > 0 && !is ? ` Sonraki eğitime ${s.sonraki_kalan} kare kaldı.` : ''}</p>`);
   return p.join('');
 }

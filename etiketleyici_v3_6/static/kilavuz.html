@@ -311,7 +311,7 @@ function ciz() {
   const farkli = siniflar.reduce((a, [kk, v]) => (!a || v.ap50 - v.ap5095 > a.f) ? { kk, f: v.ap50 - v.ap5095 } : a, null);
   $('#apCanli').innerHTML = `<div class="canli"><p>mAP50 = (${siniflar.map(([, v]) => fmt(v.ap50)).join(' + ')}) ÷ ${siniflar.length} = <b>${fmt(m.map50)}</b>.</p>`
     + (farkli ? `<p>AP50 ile AP50-95 arasındaki fark en çok <b>${ad(farkli.kk)}</b> sınıfında (${fmt(farkli.f)}): model nesneleri buluyor ama kutu kenarları tam oturmuyor.
-       Model senin kutularından öğrendiği için kenarları dikkatle çizmek (büyüteç, ok tuşları) mAP50-95’i doğrudan artırır.</p>` : '') + '</div>';
+       Model senin kutularından öğrendiği için kenarları dikkatle çizmek (yakınlaştırma, ok tuşları) mAP50-95’i doğrudan artırır.</p>` : '') + '</div>';
 
   // 6) karışıklık tablosu
   const M = m.karisiklik_esik[t.toFixed(2)] || m.karisiklik, nc = siniflar.length;
